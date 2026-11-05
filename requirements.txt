@@ -1,0 +1,9 @@
+gymnasium==0.29.1
+stable-baselines3>=2.1.0
+torch>=2.0
+numpy>=1.24
+pygame>=2.0
+pillow>=8.0
+tensorboard
+# optional: extra algorithms (RecurrentPPO, QRDQN, TRPO, ...)
+# sb3-contrib>=2.1.0
