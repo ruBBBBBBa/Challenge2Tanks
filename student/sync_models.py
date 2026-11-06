@@ -16,7 +16,6 @@ Log: logs/sync.log. A lock file keeps a --loop and a --once (from pipeline.py) f
 import argparse
 import configparser
 import datetime
-import fcntl
 import filecmp
 import glob
 import os
@@ -24,6 +23,29 @@ import shutil
 import subprocess
 import sys
 import time
+
+try:
+    import fcntl
+
+    def _lock(f):
+        fcntl.flock(f, fcntl.LOCK_EX)          # waits for a concurrent run
+
+    def _unlock(f):
+        fcntl.flock(f, fcntl.LOCK_UN)
+except ImportError:                            # Windows (PC3): msvcrt instead of fcntl
+    import msvcrt
+
+    def _lock(f):
+        while True:
+            try:
+                msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+                return
+            except OSError:                    # LK_LOCK gives up after ~10 s: keep waiting
+                pass
+
+    def _unlock(f):
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SYNC = os.path.join(os.path.dirname(ROOT), "Challenge2Tanks-sync")
@@ -113,7 +135,7 @@ def publish(prefixes):
         if git("diff", "--cached", "--quiet", "--", rel, check=False).returncode == 0:
             log(f"publish: {name} already identical on origin")
         else:
-            git("commit", "-q", "-m", f"sync: {name} (PC1, student/sync_models.py)", "--", rel)
+            git("commit", "-q", "-m", f"sync: {name} ({os.environ.get('PC', 'PC1')}, student/sync_models.py)", "--", rel)
             if not push_with_retry():
                 log(f"publish: ERROR, could not push {name}; it stays in models/outbox/ (the commit is kept "
                     f"in the sync clone and goes out with the next push)")
@@ -124,14 +146,14 @@ def publish(prefixes):
 
 def run_once(args):
     lock = open(os.path.join(os.path.dirname(SYNC), ".Challenge2Tanks-sync.lock"), "w")
-    fcntl.flock(lock, fcntl.LOCK_EX)          # waits for a concurrent run
+    _lock(lock)
     try:
         ensure_clone(args.url or origin_url())
         download()
         if args.publish:
             publish(args.publish)
     finally:
-        fcntl.flock(lock, fcntl.LOCK_UN)
+        _unlock(lock)
         lock.close()
 
 

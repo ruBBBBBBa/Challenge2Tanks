@@ -319,3 +319,18 @@
 - Elegido: `models/liga3/A-g3.zip` (mayor Elo principal de la rama A (2350)).
 - Lanzado A-g4 (PID 769646): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g4 --init models/liga3/A-g3.zip --league-glob 'models/liga3/*.zip' --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 30000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g4.out 2>&1 &`
 - Resumen: `results/pipeline_liga3.md`.
+
+## 2026-11-06 ~18:05 · PC3 · student/pipeline_exploiter.py (B y C como exploiters de A)
+
+- Nuevo `student/pipeline_exploiter.py --branch B|C`: bucle hasta que exista `STOP_EXPLOITERS`. Cada generación hace:
+  1. `sync_models.py --once`;
+  2. pool `models/pool_<rama>_gK/` con las 3 A más recientes, la última de la otra rama, D-g* y X1 si existen, y la mejor anterior propia (nunca R1 ni `models/reserved/`);
+  3. `train_agent.py` con la recompensa y los hiperparámetros de g1, `--league-share 0.6 --pfsp hard`, mixed2, `--scenario-prob 0.3`, 6M pasos (~75 min a ~1400 fps), un snapshot cada 1,5M y `--n-envs 3`;
+  4. evaluación determinista de cada snapshot y del init: 40 partidas contra la A más reciente (4 oficiales + 16 official_aug × 2 lados) y 20 contra hard (4 oficiales + 6 aleatorios × 2 lados). Se publica en `models/outbox/` el mejor contra A que gane ≥ 85 % a hard;
+  5. curvas, `results/exploiters_<rama>.md` y una entrada aquí;
+  6. `sync_models.py --once --publish B C`.
+  El estado queda en `results/exploiters_<rama>.json`, así que se reanuda solo.
+- **Cambio en `student/sync_models.py` (archivo de PC1, mínimo):** `fcntl` no existe en Windows. Ahora se usa `fcntl` si está y, si no, `msvcrt.locking` (mismo comportamiento: espera al otro proceso). El mensaje de commit usa `$PC` en lugar de «PC1» fijo. Probado `--once` en Windows: clona `../Challenge2Tanks-sync` y baja 8 modelos.
+- **Ojo:** `--publish` recibe las ramas separadas por espacios (`--publish B C`); con `B,C` no publica nada.
+- Punto de partida contra `A-g4_4000k` (40 partidas): B-g1_20000k 0-4-36 (5 %) y C-g1_20000k 0-20-20 (25 %).
+- Prueba de punta a punta con 32k pasos y sin publicar: OK (artefactos borrados).
