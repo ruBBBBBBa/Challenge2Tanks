@@ -65,3 +65,25 @@
 - Con etiquetas one-hot, la «kl» que se muestra es −log q(a), es decir, entropía cruzada. No es comparable con la KL de la destilación desde hard.
 - **Sesgo del crítico:** todos los episodios son victorias, así que la red de valor aprendería retornos demasiado optimistas. Opciones: `--vf-coef` bajo (0.1) o mezclar con los datos de hard. Para concatenar a lo largo del tiempo (`np.concatenate(axis=0)`), genera el dataset con `--streams` igual al `n_envs` de los datos de hard (8 por defecto).
 - Muchas de las victorias son contra bots. Si se quieren solo partidas contra modelos o baselines, habría que añadir un filtro (son pocas líneas).
+
+## 2026-11-06 ~11:30 · PC1 · Análisis de las partidas sospechosas de la liga 1
+
+- En la liga 1 hay 573 partidas que acaban en timeout con 0 daño, 368 de ellas entre modelos y baselines (**38 % de esas 960 partidas**).
+  **A-g1_12000k contra A-g1_16000k: 56 de 64 partidas (88 %).**
+- Muestra de 40 rehechas con `play_match` (todas reproducen el timeout con 0 daño): 24 de 12000k contra 16000k y 16 de otros emparejamientos de modelos y baselines. Clasificación a partir de las características de cada paso:
+
+| tipo | total | 12k-16k | resto | ejemplo |
+|---|---|---|---|---|
+| (e) bloqueo diagonal (nuevo) | 30 % | 9/24 | 3/16 | 12000k contra 16000k en arena_02_fortress: diagonal adyacentes, los dos apuntando a la misma celda libre, quietos 400+ pasos |
+| (d) bucle: giros, vaivén o empujar un muro | 32,5 % | 9/24 | 4/16 | 16000k contra 12000k en gen_5: uno hace forward/backward y el otro gira a izquierda y derecha, junto a él, sin disparar nunca |
+| (a) enfrentados sin dañarse | 17,5 % | 6/24 | 1/16 | 12000k contra 16000k en river_rot90: cara a cara, disparan a la vez, 94 balas anuladas |
+| (b) nunca se acercan | 17,5 % | 0/24 | 7/16 | A-g1_4000k contra hard en gen_4: vaivén forward/backward, a distancia ≥ 12 |
+| (c) uno se esconde en un arbusto | 2,5 % | 0/24 | 1/16 | A-g1_4000k contra hard en gen_7: hard, en el arbusto el 73 % del tiempo |
+
+- **Bloqueo diagonal:** si los dos avanzan hacia la misma celda, el motor no mueve a ninguno (`_move_tanks`), y en diagonal ninguno tiene línea de tiro. Hay variantes empujando (~450 choques) y quietas (noop). Muchos casos de (d) son el mismo encuentro diagonal adyacente, pero con un baile de giros y vaivén.
+- **Lo que se aprende:** entre copias de A (y entre hard y medium) la política simétrica y determinista se bloquea consigo misma. Es probable que pase lo mismo con modelos de otros equipos que también derivan de hard.
+  Ideas:
+  - inicios preparados en diagonal adyacente (`--scenario-prob`);
+  - un bot o un explotador que rompa la simetría (dar un paso atrás o a un lado para alinearse y disparar);
+  - castigar más los choques repetidos (`bumped`) o el empate sin daño en las recompensas de PC3.
+- GIFs en `out/sospechosas/` (sin git): `a_03`, `a_29`, `b_25`, `b_40`, `c_26`, `d_04`, `d_38`, `e_15` y `e_24`.
