@@ -250,3 +250,62 @@
   Útil sobre todo con `--algo recurrent`, donde domina la actualización.
 - **D-g1:** se paró el primero (PID 11512, 1,1M pasos; curvas en `logs/D-g1_1` y salida en `logs/D-g1.run1.out`) y se relanzó desde `models/D-distill.zip` con la misma config más `--learner-threads 8`.
   PID 24672 (lanzador; el proceso real es el 23772). Las curvas nuevas van a `logs/D-g1_2/`.
+
+## 2026-11-06 16:48 · PC3 · C-g1
+
+- Comando: `python student/train_agent.py --name C-g1 --reward superviviente --init baseline:hard --timesteps 20000000 --lr 1e-4 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --snapshot-every 2000000 --eval-games 2 --n-envs 3 --opponents {"baseline:hard": 0.25, "my:stoch:baseline:hard": 0.20, "baseline:medium": 0.10, "basic": 0.10, "aggressive": 0.10, "defensive": 0.10, "my:rusher": 0.05, "my:bushcamper": 0.05, "my:hitandhide": 0.05}`
+- Pasos: 20,008,170 · inicio 2026-11-06T13:06 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-06 16:48 · PC3 · B-g1
+
+- Comando: `python student/train_agent.py --name B-g1 --reward agresiva --init baseline:hard --timesteps 20000000 --lr 1e-4 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --snapshot-every 2000000 --eval-games 2 --n-envs 3 --opponents {"baseline:hard": 0.25, "my:stoch:baseline:hard": 0.20, "baseline:medium": 0.10, "basic": 0.10, "aggressive": 0.10, "defensive": 0.10, "my:rusher": 0.05, "my:bushcamper": 0.05, "my:hitandhide": 0.05}`
+- Pasos: 20,008,170 · inicio 2026-11-06T13:06 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 1.00 |
+
+- Notas: 
+
+## 2026-11-06 ~17:15 · PC3 · Evaluación de B-g1 y C-g1 y snapshots para la liga 2
+
+- Terminados a las 16:48: 20M pasos cada uno, sin errores, ~1500 fps cada uno. Tasa de éxito en el entrenamiento: 0,96 en los dos.
+- `tools/evaluate.py --games 20` (determinista):
+
+| rival | hard | B-g1 | C-g1 |
+|---|---|---|---|
+| random | 55 % | 100 % | 100 % |
+| basic | 100 % | 100 % | 100 % |
+| aggressive | 100 % | 100 % | 100 % |
+| defensive | 95 % | 100 % | 90 % |
+| baseline:easy | 20 % | 95 % | 75 % |
+| baseline:hard | 0 % (20 empates) | 95 % | 100 % |
+| baseline:medium | 70 % | 100 % | 80 % |
+| **total** | 62,9 % | **98,6 %** | **92,1 %** |
+
+- Cara a cara en 8 mapas (4 oficiales + 4 aleatorios) × 2 lados:
+  - B-g1 contra hard: 16-0-0, daño 48-6;
+  - C-g1 contra hard: 16-0-0, daño 48-0;
+  - **B-g1 contra C-g1: 16 empates, daño 2-2.** Se bloquean entre ellos, como hard contra sí mismo. Es la debilidad a vigilar en la liga 2.
+- Trampas (25 partidas cada uno): las rachas largas de giros heredadas de hard han desaparecido (máximo 3-6 seguidos frente a 180 de hard). 0 empates sin daño contra bots y nada de esconderse en arbustos al final. Episodios mucho más cortos (58-73 pasos de media frente a 199 de hard). Apuntar con el arma cargada sin disparar: 6/63 (B) y 2/64 (C) pasos; conviene revisarlo en replays.
+- Snapshots subidos para la liga 2: `B-g1_10000k`, `B-g1_20000k`, `C-g1_10000k`, `C-g1_20000k`. Curvas en `results/tb/B-g1` y `results/tb/C-g1`.
