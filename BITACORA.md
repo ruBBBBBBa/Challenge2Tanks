@@ -356,3 +356,11 @@
 - **Zip guardado entrenando en GPU** (`.venv-gpu`, `device=cuda`, `learn(4096)`):
   - carga con `RecurrentPPO.load(..., device="cpu")` en `.venv` (torch sin CUDA);
   - juega con `play_match("model:...")`: gana a basic (3-0, destrucción) y empata con hard (timeout).
+
+## 2026-11-06 ~19:00 · PC2 · D-g1b (D-g1 retomado en GPU)
+
+- Se paró D-g1 (CPU, 1,75M pasos) y se retomó desde `models/checkpoints_D-g1/D-g1_1500000_steps.zip`. Las snapshots de 2M no llegaron a existir.
+  `.venv-gpu\Scripts\python.exe student\train_agent.py --name D-g1b --init models/checkpoints_D-g1/D-g1_1500000_steps.zip --device cuda`, con la misma config que D-g1 (`logs/run_D-g1b.ps1`, salida en `logs/D-g1b.out`).
+  **Ojo:** el contador de pasos vuelve a 0, así que D-g1b_Nk lleva en realidad 1,5M + N pasos.
+- Ritmo sin otro proceso en la máquina: ~33 s por iteración (~250 pasos/s), con la GPU al ~60 %. Es **prácticamente igual** que D-g1 solo en CPU con `--learner-threads 8` (~35 s).
+  El 1,5× del benchmark se debía a la competencia por la CPU. La ganancia real es que la CPU queda libre para otro entrenamiento.
