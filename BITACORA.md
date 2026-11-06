@@ -87,3 +87,18 @@
   - un bot o un explotador que rompa la simetría (dar un paso atrás o a un lado para alinearse y disparar);
   - castigar más los choques repetidos (`bumped`) o el empate sin daño en las recompensas de PC3.
 - GIFs en `out/sospechosas/` (sin git): `a_03`, `a_29`, `b_25`, `b_40`, `c_26`, `d_04`, `d_38`, `e_15` y `e_24`.
+
+## 2026-11-06 ~12:15 · PC1 · Inicios preparados de combate cercano (`--close-prob`)
+
+- `--close-prob` (por defecto 0.5): parte de los inicios preparados (`--scenario-prob`) que son de combate cercano, repartidos 50/50 entre:
+  - `diag`: diagonal adyacente. En el 30 % de los intentos se busca que alguna casilla común esté bloqueada (agua, muro, ladrillo). Si hay casilla común libre, en la mitad de los casos los dos tanques miran hacia ella (el bloqueo de la liga 1); en el resto, la orientación es aleatoria.
+  - `faceoff`: alineados a 1–5 casillas, con línea de tiro despejada, mirándose de frente y viéndose (a ≥ 3 casillas ninguno está en un arbusto). Cooldowns iguales en la mitad de los casos (como tras anular las balas) y distintos en la otra mitad.
+  - El resto de inicios preparados sigue igual (`random`). HP aleatorios y la mitad con `step_count` avanzado, en todos los tipos.
+- `info["scenario"]` vale `False` o el tipo de inicio: `"random"`, `"diag"` o `"faceoff"`.
+- Comprobado en 600 inicios con close_prob = 1:
+  - 46 % diag y 54 % faceoff;
+  - diag: 28 % con casilla común bloqueada y 54 % mirando a la casilla libre;
+  - faceoff: 47 % con cooldowns iguales; en la obs, «enemigo en mi mira» y «yo en su mira» = 1;
+  - 49 % con `step_count` avanzado; obs = `vector_obs`; los finales son correctos;
+  - el bloqueo se reproduce: con los dos avanzando hacia la casilla común, ninguno se mueve.
+  Con `--scenario-prob 0.3` y la close-prob por defecto: 15,5 % random, 7,2 % diag y 7,7 % faceoff. Entrenamiento corto: OK.

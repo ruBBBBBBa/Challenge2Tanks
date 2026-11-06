@@ -88,6 +88,7 @@ def parse_args(argv=None):
     ap.add_argument("--pfsp", choices=["off", "variance", "hard"], default="variance")
     ap.add_argument("--maps", choices=["official", "official_aug", "random", "mixed", "gen", "mixed2"], default="mixed")
     ap.add_argument("--scenario-prob", type=float, default=0.0, help="probability of a prepared start")
+    ap.add_argument("--close-prob", type=float, default=0.5, help="share of prepared starts that are close combat")
     ap.add_argument("--timesteps", type=int, default=5_000_000)
     ap.add_argument("--n-envs", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-4)
@@ -146,7 +147,7 @@ def main(argv=None):
 
     env = make_vec_env(StudentTanksEnv, n_envs=args.n_envs, seed=args.seed, vec_env_cls=SubprocVecEnv,
                        env_kwargs=dict(opponent=opponent, maps=args.maps, reward_fn=reward_fn,
-                                       scenario_prob=args.scenario_prob),
+                                       scenario_prob=args.scenario_prob, close_prob=args.close_prob),
                        monitor_kwargs=dict(info_keywords=("is_success",)))
     model = build_model(args, env)
     lr_eff, clip_eff = model.lr_schedule(1.0), model.clip_range(1.0)
