@@ -117,6 +117,7 @@ def parse_args(argv=None):
     ap.add_argument("--blend-steps", type=int, default=300_000)
     ap.add_argument("--snapshot-every", type=int, default=250_000)
     ap.add_argument("--eval-games", type=int, default=20)
+    ap.add_argument("--device", choices=["cpu", "cuda", "auto"], default="cpu", help="cpu by default (SB3 auto would pick the GPU)")
     ap.add_argument("--learner-threads", type=int, default=1, help="torch threads for the update (main process)")
     return ap.parse_args(argv)
 
@@ -137,9 +138,9 @@ def build_model(args, env):
     common = dict(n_steps=n_steps, ent_coef=args.ent_coef, seed=args.seed,
                   tensorboard_log=os.path.join(ROOT, "logs"))
     if args.init == "none":
-        return Algo(policy, env, learning_rate=args.lr, clip_range=args.clip_range, device="cpu", verbose=1,
+        return Algo(policy, env, learning_rate=args.lr, clip_range=args.clip_range, device=args.device, verbose=1,
                     policy_kwargs=dict(net_arch=[256, 256]), **HARD_KWARGS, **common)
-    model = Algo.load(init_path(args.init), env=env, device="cpu",
+    model = Algo.load(init_path(args.init), env=env, device=args.device,
                       custom_objects={"learning_rate": args.lr, "clip_range": args.clip_range}, **common)
     model.verbose = 1
     return model

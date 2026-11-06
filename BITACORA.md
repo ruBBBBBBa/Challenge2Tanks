@@ -334,3 +334,25 @@
 - **Ojo:** `--publish` recibe las ramas separadas por espacios (`--publish B C`); con `B,C` no publica nada.
 - Punto de partida contra `A-g4_4000k` (40 partidas): B-g1_20000k 0-4-36 (5 %) y C-g1_20000k 0-20-20 (25 %).
 - Prueba de punta a punta con 32k pasos y sin publicar: OK (artefactos borrados).
+
+## 2026-11-06 ~18:30 · PC2 · GPU para RecurrentPPO: `--device` y benchmark
+
+- GPU: RTX 3080 Ti, 12 GB, driver 591.86 (CUDA 13.1).
+  - `.venv` es solo CPU: torch 2.15.0+cpu, SB3 2.9.2 y sb3-contrib 2.9.2.
+  - Nuevo entorno `.venv-gpu`, sin git: torch **2.14.1+cu130** (la 2.15 no existe para CUDA), numpy 1.26.4 y el resto de paquetes en las mismas versiones que `.venv`.
+- **`student/train_agent.py`:** nueva opción `--device {cpu,cuda,auto}`, **por defecto cpu**. SB3, con "auto", cogería la GPU sola en cuanto hubiera torch con CUDA. Solo se usa en `Algo(...)` y en `Algo.load(...)`; nada más cambia.
+- **Benchmark** con la config de D-g1:
+  - 5 iteraciones de 8192 pasos; en la media se descarta la primera, que es de calentamiento;
+  - con D-g1 (CPU, 8 hilos de learner) corriendo en los dos casos;
+  - `collect_rollouts` y `train` se cronometran por separado con un envoltorio (fuera del repo).
+
+| | rollout | actualización | total por iteración | pasos/s |
+|---|---|---|---|---|
+| CPU, `--learner-threads 8` | 3.5 s | 51.2 s | 54.7 s | ~150 |
+| `--device cuda` | 5.2 s | 31.2 s | 36.4 s | ~225 |
+
+  En total, la **GPU es 1,50 veces más rápida**. El rollout es algo más lento en GPU (inferencia de lotes de 8 con la LSTM), pero la actualización es 1,6 veces más rápida.
+  **Ojo:** la versión CPU sufre más la competencia con D-g1 (los dos piden 8 hilos en la actualización). D-g1 solo en CPU iba a ~35 s por iteración, así que con la máquina libre la ventaja real de la GPU puede ser menor. Lo seguro: con la GPU la CPU queda libre para otro entrenamiento en paralelo.
+- **Zip guardado entrenando en GPU** (`.venv-gpu`, `device=cuda`, `learn(4096)`):
+  - carga con `RecurrentPPO.load(..., device="cpu")` en `.venv` (torch sin CUDA);
+  - juega con `play_match("model:...")`: gana a basic (3-0, destrucción) y empata con hard (timeout).
