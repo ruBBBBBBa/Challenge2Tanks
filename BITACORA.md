@@ -235,3 +235,18 @@
 - Lanzado D-g1 (PID 11512), con la mezcla de rivales del plan pero quitando medium para meter `model:models/league/A-g2_20000k.zip` (0.15): `train_agent.py --name D-g1 --algo recurrent --init models/D-distill.zip --lr 5e-5 --timesteps 60000000 --snapshot-every 2000000 --maps mixed2 --scenario-prob 0.3 --ent-coef 0.02 --eval-games 2 --n-envs 8`.
   - Script: `logs/run_D-g1.ps1`; salida en `logs/D-g1.out` y `logs/D-g1.err`.
   - LR efectivo de 5e-5, comprobado. **~200 pasos/s**: domina la actualización de RecurrentPPO en 1 hilo. Ritmo de ~0,7M por hora y ~2,8 h por snapshot.
+
+## 2026-11-06 ~15:15 · PC2 · `--learner-threads` en train_agent.py y relanzamiento de D-g1
+
+- **Cambio en `student/train_agent.py` (archivo de PC1, mínimo):** nueva opción `--learner-threads N` (por defecto 1, sin cambios respecto a lo que había).
+  Con N > 1 se añade `LearnerThreadsCallback`, que solo actúa en el proceso principal:
+  - `_on_rollout_end` hace `torch.set_num_threads(N)` para la actualización;
+  - `_on_rollout_start` vuelve a 1.
+  Los entornos siguen con 1 hilo.
+- **Medida** (RecurrentPPO, la config de D-g1 y 5 iteraciones, con el D-g1 anterior corriendo a la vez):
+  - 1 hilo: ~57 s por iteración de 8192 pasos (~145 pasos/s);
+  - 8 hilos: ~41 s (~200 pasos/s).
+  Relanzado sin competencia de CPU: ~35 s por iteración, **~240 pasos/s marginales** (~0,85M por hora) frente a ~150–200 antes.
+  Útil sobre todo con `--algo recurrent`, donde domina la actualización.
+- **D-g1:** se paró el primero (PID 11512, 1,1M pasos; curvas en `logs/D-g1_1` y salida en `logs/D-g1.run1.out`) y se relanzó desde `models/D-distill.zip` con la misma config más `--learner-threads 8`.
+  PID 24672 (lanzador; el proceso real es el 23772). Las curvas nuevas van a `logs/D-g1_2/`.

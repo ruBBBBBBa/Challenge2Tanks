@@ -74,6 +74,25 @@ class SnapshotCallback(BaseCallback):
         return True
 
 
+class LearnerThreadsCallback(BaseCallback):
+    """Main process only: N torch threads for the gradient update, 1 while collecting rollouts."""
+
+    def __init__(self, n):
+        super().__init__()
+        self.n = n
+
+    def _on_rollout_start(self):
+        import torch
+        torch.set_num_threads(1)
+
+    def _on_rollout_end(self):
+        import torch
+        torch.set_num_threads(self.n)
+
+    def _on_step(self):
+        return True
+
+
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--name", required=True)
@@ -98,6 +117,7 @@ def parse_args(argv=None):
     ap.add_argument("--blend-steps", type=int, default=300_000)
     ap.add_argument("--snapshot-every", type=int, default=250_000)
     ap.add_argument("--eval-games", type=int, default=20)
+    ap.add_argument("--learner-threads", type=int, default=1, help="torch threads for the update (main process)")
     return ap.parse_args(argv)
 
 
@@ -165,6 +185,8 @@ def main(argv=None):
         callbacks.append(WinRateCurriculum(args.stages))
     else:
         callbacks.append(PFSPCallback(fixed, league, args.league_share, args.pfsp))
+    if args.learner_threads > 1:
+        callbacks.append(LearnerThreadsCallback(args.learner_threads))
 
     model.learn(total_timesteps=args.timesteps, callback=callbacks, tb_log_name=args.name)
     model.save(f"models/{args.name}")
