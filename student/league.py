@@ -7,6 +7,8 @@ League: deterministic round robin between models, baselines and bots (CLAUDE.md 
 
 Model vs model is deterministic: one game per (map, side). Any pair with a bot plays --bot-seeds games.
 Maps: official, official_aug variants (student/maps) and --random N fixed-seed random maps (reported apart).
+--gen-maps N adds N maps from student/map_gen.py (seed --gen-seed, not the one of student/maps/gen):
+they get their own column (win rate and a separate Elo) and are left out of the main Elo and stats.
 Output: results/league_<date>.md and .json (Bradley-Terry Elo, win rate vs top-3, worst matchup,
 random maps, draws, damage, suspicious games, simulated bracket).
 """
@@ -27,6 +29,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from student.envs import _official_aug  # noqa: E402
+from student.map_gen import STYLES, gen_map  # noqa: E402
 from tanks.agents.base import load_agent  # noqa: E402
 from tanks.maps import list_maps, load_map, random_map  # noqa: E402
 from tanks.match import play_match, save_replay  # noqa: E402
@@ -39,6 +42,9 @@ def resolve_map(key):
     kind, value = key.split(":", 1)
     if kind == "random":
         return random_map(np.random.default_rng(int(value)))
+    if kind == "gen":   # "gen:<seed>:<k>", one independent RNG per map
+        seed, k = map(int, value.split(":"))
+        return gen_map(np.random.default_rng([seed, k]), STYLES[k % len(STYLES)], name=f"gen_{seed}_{k}")
     return load_map(value)
 
 
@@ -121,15 +127,18 @@ def simulate_bracket(entrants, table, official_maps, final_maps, sims, seed=0):
     return {i: champs[i] / sims for i in entrants}
 
 
-def analyse(names, kinds, rows, official_maps, random_maps, sims):
+def analyse(names, kinds, all_rows, official_maps, random_maps, sims):
     n = len(names)
     score = {"win": 1.0, "draw": 0.5, "lose": 0.0}
-    games = [(r["i"], r["j"], score[r["result"] or "draw"]) for r in rows]
-    elo = bradley_terry(n, games)
+    rows = [r for r in all_rows if not r["map"].startswith("gen:")]
+    gen_rows = [r for r in all_rows if r["map"].startswith("gen:")]
+    elo = bradley_terry(n, [(r["i"], r["j"], score[r["result"] or "draw"]) for r in rows])
+    elo_gen = bradley_terry(n, [(r["i"], r["j"], score[r["result"] or "draw"]) for r in gen_rows])
     if "baseline:hard" in names:
         elo = elo - elo[names.index("baseline:hard")] + 1500
     else:
         elo = elo - elo.mean() + 1500
+    elo_gen = elo_gen - elo_gen.mean() + elo.mean() if gen_rows else None
     order = list(np.argsort(-elo))
 
     # results seen from both sides: per[p] = list of (opponent, result, dmg, map)
@@ -163,9 +172,12 @@ def analyse(names, kinds, rows, official_maps, random_maps, sims):
             worst_score=None if worst is None else float(np.mean(by_opp[worst])),
             wr_random=wr([x for x in lst if x[3].startswith("random:")]),
             wr_official=wr([x for x in lst if x[3] in official_maps]),
-            avg_damage=float(np.mean([x[2] for x in lst])) if lst else 0.0))
+            avg_damage=float(np.mean([x[2] for x in lst])) if lst else 0.0,
+            wr_gen=wr([(None, r["result"] if r["i"] == p else flip[r["result"]]) for r in gen_rows
+                       if p in (r["i"], r["j"])]),
+            elo_gen=None if elo_gen is None else float(elo_gen[p])))
 
-    suspicious = [r for r in rows if r["end"] == "timeout" and r["dmg"] + r["dmg_en"] == 0]
+    suspicious = [r for r in all_rows if r["end"] == "timeout" and r["dmg"] + r["dmg_en"] == 0]
     for r in suspicious:
         for p in (r["i"], r["j"]):
             stats[p]["suspicious"] = stats[p].get("suspicious", 0) + 1
@@ -191,22 +203,27 @@ def pct(x):
     return "-" if x is None or x != x else f"{100 * x:.0f}%"
 
 
+def fmt_gen(s):
+    return "-" if s["elo_gen"] is None else f"{pct(s['wr_gen'])} ({s['elo_gen']:.0f})"
+
+
 def write_report(path, stats, suspicious, matrix, names, meta):
     L = [f"# Liga {meta['date']}", "",
          f"{len(names)} participantes · {meta['n_games']} partidas · mapas: {meta['maps_summary']} · "
          f"{meta['minutes']:.1f} min · {meta['procs']} procesos", "",
          "| # | participante | tipo | Elo | W-D-L | win rate | vs top-3 | peor emparejamiento | aleatorios | "
-         "oficiales | empates | daño | sospechosas | P(campeón) |",
-         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+         "oficiales | gen (Elo gen) | empates | daño | sospechosas | P(campeón) |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for k, s in enumerate(stats, 1):
         worst = f"{s['worst']} ({pct(s['worst_score'])})" if s["worst"] else "-"
         L.append(f"| {k} | {s['name']} | {s['kind']} | {s['elo']:.0f} | {s['win']}-{s['draw']}-{s['lose']} | "
                  f"{pct(s['win_rate'])} | {pct(s['wr_top3'])} | {worst} | {pct(s['wr_random'])} | "
-                 f"{pct(s['wr_official'])} | {pct(s['draw'] / max(1, s['games']))} | {s['avg_damage']:.2f} | "
+                 f"{pct(s['wr_official'])} | {fmt_gen(s)} | {pct(s['draw'] / max(1, s['games']))} | {s['avg_damage']:.2f} | "
                  f"{s.get('suspicious', 0)} | {pct(s.get('p_champion'))} |")
     L += ["", "Puntuación = (W + 0.5·D) / partidas. Peor emparejamiento = rival con menor puntuación. "
           "P(campeón) = bracket de 8 al mejor de 3 (rondas en oficiales, final en aleatorios), "
-          f"{meta['sims']} sorteos.", "", "## Cara a cara (top-10, puntuación de la fila contra la columna)", ""]
+          f"{meta['sims']} sorteos. Los mapas gen (map_gen.py) no entran en el Elo, el W-D-L ni el bracket: "
+          "solo en la columna gen (win rate y Elo propio, centrado en la media del principal).", "", "## Cara a cara (top-10, puntuación de la fila contra la columna)", ""]
     cols = list(matrix)
     L.append("| | " + " | ".join(cols) + " |")
     L.append("|---" * (len(cols) + 1) + "|")
@@ -228,6 +245,8 @@ def parse_args(argv=None):
     ap.add_argument("--official", nargs="*", default=None, help="official maps (default: all)")
     ap.add_argument("--no-aug", action="store_true", help="skip the official_aug variants")
     ap.add_argument("--random", type=int, default=8, help="number of fixed-seed random maps")
+    ap.add_argument("--gen-maps", type=int, default=0, help="extra maps from map_gen.py (own column)")
+    ap.add_argument("--gen-seed", type=int, default=20261107, help="seed of the --gen-maps maps")
     ap.add_argument("--bot-seeds", type=int, default=3, help="games per (map, side) when a bot plays")
     ap.add_argument("--procs", type=int, default=8)
     ap.add_argument("--sims", type=int, default=20000, help="bracket simulations")
@@ -261,7 +280,8 @@ def main(argv=None):
                                        if not p.endswith("__orig.txt")
                                        and os.path.basename(p).split("__")[0] in official]
     random_keys = [f"random:{RANDOM_SEED0 + k}" for k in range(args.random)]
-    map_keys = official_keys + aug_keys + random_keys
+    gen_keys = [f"gen:{args.gen_seed}:{k}" for k in range(args.gen_maps)]
+    map_keys = official_keys + aug_keys + random_keys + gen_keys
 
     tasks = []
     for i, j in itertools.combinations(range(len(specs)), 2):
@@ -271,7 +291,7 @@ def main(argv=None):
                 for s in seeds:
                     tasks.append((i, j, key, side, s, specs[i], specs[j]))
     print(f"[league] {len(specs)} participants, {len(map_keys)} maps "
-          f"({len(official_keys)} official + {len(aug_keys)} aug + {len(random_keys)} random), "
+          f"({len(official_keys)} official + {len(aug_keys)} aug + {len(random_keys)} random + {len(gen_keys)} gen), "
           f"{len(tasks)} games, {args.procs} procs", flush=True)
 
     rows = []
@@ -290,7 +310,7 @@ def main(argv=None):
     base = os.path.join(args.out, f"league_{date}{'_' + args.tag if args.tag else ''}")
     meta = dict(date=date, n_games=len(rows), procs=args.procs, sims=args.sims, specs=specs,
                 minutes=(time.time() - t0) / 60, maps=map_keys,
-                maps_summary=f"{len(official_keys)} oficiales + {len(aug_keys)} aug + {len(random_keys)} aleatorios",
+                maps_summary=f"{len(official_keys)} oficiales + {len(aug_keys)} aug + {len(random_keys)} aleatorios + {len(gen_keys)} gen",
                 args=vars(args))
     write_report(base + ".md", stats, suspicious, matrix, names, meta)
     with open(base + ".json", "w", encoding="utf-8") as f:
@@ -298,7 +318,7 @@ def main(argv=None):
     print(f"[league] wrote {base}.md / .json")
     for k, s in enumerate(stats[:10], 1):
         print(f"  {k:2d}. {s['name']:28s} Elo {s['elo']:6.0f}  wr {pct(s['win_rate']):>4s}  "
-              f"top3 {pct(s['wr_top3']):>4s}  rnd {pct(s['wr_random']):>4s}  champ {pct(s.get('p_champion'))}")
+              f"top3 {pct(s['wr_top3']):>4s}  rnd {pct(s['wr_random']):>4s}  gen {fmt_gen(s):>10s}  champ {pct(s.get('p_champion'))}")
 
     if args.replays_dir:
         idx = {nm: p for p, nm in enumerate(names)}
