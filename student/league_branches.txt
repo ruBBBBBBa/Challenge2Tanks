@@ -1,0 +1,7 @@
+# Otras ramas que pipeline.py mete en cada liga (2 versiones más recientes de models/league/ + models/shared/).
+# Se lee antes de cada liga: añadir una rama aquí no obliga a relanzar el pipeline. R1 nunca entra.
+B
+C
+D
+X1
+E

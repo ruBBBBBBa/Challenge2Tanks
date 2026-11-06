@@ -9,8 +9,9 @@ Per generation (A-g2 -> liga2 -> A-g3 -> liga3 -> A-g4 with --generations 2):
  1. wait for the PID in --wait-pid (the running training);
  2. copy logs/<ID>_<n>/ (latest n) to results/tb/<ID>/;
  3. models/ligaK/: snapshots of <ID> every 4M steps + the last one, top-3 models of the previous league,
-    the 2 most recent versions of each other branch (B, C, D, X1) from models/league/ + models/shared/
-    (D only if sb3-contrib/RecurrentPPO loads). Never R1-* or models/reserved/;
+    the 2 most recent versions of each other branch from models/league/ + models/shared/; the branches
+    are read from student/league_branches.txt before every league (default B, C, D, X1, E; D only if
+    sb3-contrib/RecurrentPPO loads). Never R1-* or models/reserved/;
     right before, `sync_models.py --once` brings the other computers' models to models/shared/;
  4. league.py on models/ligaK/*.zip (baselines, the 6 bots of league 1, --gen-maps 8, --save-all-replays);
  5. pick the branch-A model with the best main Elo (tie: best P(champion)) and copy it to
@@ -30,10 +31,12 @@ import shutil
 import subprocess
 import sys
 import time
+import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = sys.executable
-OTHER_BRANCHES = ["B", "C", "D", "X1"]
+OTHER_BRANCHES = ["B", "C", "D", "X1", "E"]   # default if student/league_branches.txt is missing
+BRANCHES_FILE = os.path.join(ROOT, "student", "league_branches.txt")
 OTHER_PER_BRANCH = 2
 BOTS = ["basic", "aggressive", "defensive", "my:rusher", "my:bushcamper", "my:hitandhide"]
 OPPONENTS = {"baseline:hard": 0.20, "my:stoch:baseline:hard": 0.15, "baseline:medium": 0.15, "basic": 0.05,
@@ -98,11 +101,35 @@ def kilo(path):
 
 
 # ------------------------------------------------------------------ steps
+def is_training(pid, run_id):
+    """True if PID is `train_agent.py --name <run_id>` (or if /proc cannot tell)."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            args = f.read().decode(errors="replace").split("\0")
+    except OSError:
+        return True
+    return any(a.endswith("train_agent.py") for a in args) and run_id in args
+
+
+def valid_zip(path):
+    """A snapshot cut short by a shutdown is not a valid zip (or has a bad CRC)."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            return z.testzip() is None
+    except (zipfile.BadZipFile, OSError):
+        return False
+
+
 def wait_for(pid_file, poll, dry):
     if not os.path.exists(pid_file):
         log(f"WARNING: {pid_file} does not exist, assuming the training has finished")
         return
     pid = int(open(pid_file).read().split()[0])
+    run_id = os.path.splitext(os.path.basename(pid_file))[0]
+    if alive(pid) and not is_training(pid, run_id):
+        log(f"PID {pid} is alive but is not the training {run_id} (PID reused after a reboot?): "
+            f"assuming {run_id} has finished")
+        return
     if dry:
         log(f"[dry] would wait for PID {pid} ({'running' if alive(pid) else 'already finished'})")
         return
@@ -134,8 +161,15 @@ def previous_league():
 def participants(run_id, every):
     """[(source path, reason)] for models/ligaK/. Never anything under models/reserved/."""
     own = sorted(glob.glob(os.path.join(ROOT, "models", "league", f"{run_id}_*k.zip")), key=kilo)
+    bad = [p for p in own if not valid_zip(p)]
+    for p in bad:
+        log(f"WARNING: skipping {os.path.relpath(p, ROOT)} (not a valid zip: cut short by a shutdown?)")
+    own = [p for p in own if p not in bad]
     picked = [(p, f"{run_id} cada {every // 1_000_000}M") for p in own if kilo(p) * 1000 % every == 0]
     final = os.path.join(ROOT, "models", f"{run_id}.zip")
+    if os.path.exists(final) and not valid_zip(final):
+        log(f"WARNING: {os.path.relpath(final, ROOT)} is not a valid zip, using the last snapshot")
+        final = ""
     if os.path.exists(final) and os.path.exists(final[:-4] + ".json"):   # final == last snapshot: keep one
         steps = json.load(open(final[:-4] + ".json", encoding="utf-8")).get("steps", -1)
         picked = [(p, w) for p, w in picked if kilo(p) * 1000 != steps]
@@ -155,7 +189,8 @@ def participants(run_id, every):
     out, names = [], set()
     for p, why in picked:
         name = os.path.basename(p)
-        if "reserved" in os.path.relpath(p, ROOT).split(os.sep) or name.startswith("R1") or name in names:
+        if "reserved" in os.path.relpath(p, ROOT).split(os.sep) or name.startswith("R1") or name in names \
+                or not valid_zip(p):
             continue
         names.add(name)
         out.append((p, why))
@@ -176,9 +211,20 @@ def recurrent_ok():
         return False
 
 
+def load_branches():
+    """Branches from student/league_branches.txt (one per line, # comments), read before every league."""
+    if not os.path.exists(BRANCHES_FILE):
+        return list(OTHER_BRANCHES)
+    with open(BRANCHES_FILE, encoding="utf-8") as f:
+        names = [ln.split("#")[0].strip() for ln in f]
+    return [b for b in names if b and b not in ("A", "R1")]   # A is ours; R1 never plays
+
+
 def other_branches(per_branch=OTHER_PER_BRANCH):
     """Latest `per_branch` versions of each other branch, from models/league/ and models/shared/."""
-    branches = [b for b in OTHER_BRANCHES if b != "D" or recurrent_ok()]
+    branches = [b for b in load_branches() if b != "D" or recurrent_ok()]
+    log(f"  other branches ({os.path.relpath(BRANCHES_FILE, ROOT) if os.path.exists(BRANCHES_FILE) else 'default'}): "
+        f"{', '.join(branches)}")
     found = {}
     for d in ("league", "shared"):
         for p in glob.glob(os.path.join(ROOT, "models", d, "*.zip")):

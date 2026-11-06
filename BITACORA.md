@@ -387,6 +387,53 @@
 
 - Comando: `python student/train_agent.py --name C-g2 --init models/league/C-g1_20000k.zip --reward superviviente --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --eval-games 2 --league-glob models/pool_C_g2/*.zip --league-share 0.6 --pfsp hard --maps mixed2 --scenario-prob 0.3 --timesteps 6000000 --snapshot-every 1500000 --n-envs 3 --opponents {"baseline:hard":0.4,"my:stoch:baseline:hard":0.2,"baseline:medium":0.1,"my:bushcamper":0.1,"my:hitandhide":0.1,"aggressive":0.05,"defensive":0.05}`
 - Pasos: 6,003,270 · inicio 2026-11-06T18:00 · lr efectivo 0.0001
+## 2026-11-06 17:34 · PC1 · pipeline: A-g4 → liga4 → A-g5
+
+- Liga: `results/league_2026-11-06_1732_liga4.json` (8 modelos + baselines + bots).
+- Elegido: `models/liga4/A-g4_4000k.zip` (mayor Elo principal de la rama A (2409)).
+- Lanzado A-g5 (PID 787084): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g5 --init models/liga4/A-g4_4000k.zip --league-glob 'models/liga4/*.zip' --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 30000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g5.out 2>&1 &`
+- Resumen: `results/pipeline_liga4.md`.
+
+## 2026-11-06 17:55 · PC1 · Liga entre ordenadores: sync_models.py + pipeline
+
+- `student/sync_models.py` (commit `5b49eb5`): todo el git va en un clon aparte, `../Challenge2Tanks-sync`; nunca en la carpeta de trabajo.
+  - Bajar: `pull --rebase` y los `.zip` nuevos o cambiados de `models/league/` pasan a `models/shared/`.
+  - Subir: `models/outbox/<P>-*.zip` → `git add` solo de ese archivo, commit y push (3 reintentos con pull --rebase) → `models/outbox/sent/`.
+  - Nunca publica R1, nada de `models/reserved/` (aunque llegue por enlace simbólico) ni archivos de más de 50 MB.
+  - Un lock evita que el `--loop` y el `--once` del pipeline se pisen. Log en `logs/sync.log`.
+  - `models/shared/` y `models/outbox/` van en `.gitignore`.
+- Prueba de `--once`: clonó el repo y bajó 7 modelos (A-g1_16000k, A-g2_20000k, A-g4_4000k, B-g1_10000k/20000k y C-g1_10000k/20000k). La segunda ejecución no copia nada. Filtros de publicación comprobados.
+- `pipeline.py`:
+  - ejecuta `sync_models.py --once` antes de montar cada liga;
+  - de las otras ramas (B, C, D, X1) coge las **2 versiones más recientes** de cada una, juntando `models/league/` y `models/shared/` (D entra porque sb3-contrib 2.1.0 carga RecurrentPPO); nunca R1 ni `models/reserved/`;
+  - tras cada liga, copia el mejor A a `models/outbox/` con su nombre de snapshot (`A-g3.zip` → `A-g3_30000k.zip`).
+- Publicado: `A-g3_30000k.zip` (commit `14324fa` hecho por el sync); `A-g4_4000k.zip` ya estaba en origin (idéntico).
+- Sync en marcha: `nohup .venv/bin/python student/sync_models.py --loop --publish A > logs/sync.out 2>&1 &`, **PID 795544** (`logs/sync.pid`), cada 15 min.
+- **Ojo con `git pull` en esta carpeta:** cada A publicado existe aquí sin seguimiento en `models/league/`, y git se niega a sobrescribirlo («untracked working tree files would be overwritten»). Si pasa, hay que borrar la copia local de esos archivos (es el mismo modelo) y repetir el pull.
+- Pendiente, a la espera de confirmación: relanzar el pipeline con el código nuevo esperando a A-g5 (PID 787084, acaba hacia las 21:00 a ~2 430 fps), con 8 generaciones de 12M pasos (~88 min cada una: 82 de entrenamiento y ~5 de liga; terminarían hacia las 8:45).
+
+## 2026-11-06 18:00 · PC1 · Pipeline 3 relanzado + student/safe_pull.sh
+
+- Antes de parar nada se comprobó que A-g5 (PID 787084) seguía vivo. Después se paró **solo** el pipeline viejo (PID 777120); A-g5 siguió en marcha, en su propia sesión.
+- Pipeline relanzado con el código nuevo (sync antes de cada liga, otras ramas desde shared y outbox): **PID 798880** (`logs/pipeline.pid`), salida en `logs/pipeline3.out`:
+  `nohup .venv/bin/python student/pipeline.py --wait-pid logs/A-g5.pid --generations 8 --timesteps 12000000 --pfsp-modes hard,variance,hard,variance,hard,variance,hard,variance > logs/pipeline3.out 2>&1 &`
+  Generaciones A-g6 a A-g13, alternando PFSP hard y variance para comparar los dos modos (A-g5 es variance). A-g5 acabará hacia las 21:00, a ~2 430 fps, y cada generación debería tardar unos 88 min: el final se espera hacia las 8:45.
+- `student/safe_pull.sh` (`bash student/safe_pull.sh`):
+  1. `git fetch`;
+  2. cada archivo que el pull añadiría y que aquí existe sin seguimiento: si su `git hash-object` coincide con el blob de origin, se borra la copia local; si es distinto, se renombra a `<nombre>.local` con aviso;
+  3. `git pull --rebase --autostash`;
+  4. si el único conflicto es BITACORA.md, conserva las líneas de los dos lados (sin marcas; también quita la sección base del estilo diff3), hace `git add` y descarta el autostash, o continúa el rebase si el conflicto viene de un commit local. Si hay conflicto en otro archivo, para con exit 2 sin tocar nada.
+  Nunca usa `git add .`, `git stash` a secas ni `git reset --hard`.
+- Pruebas en un sandbox con un remoto vacío y dos clones:
+  - (A) zip idéntico → borrado; zip distinto → `.local`; zip solo local → intacto; conflicto de BITACORA en el autostash → los dos lados, stash vacío;
+  - (B) commit local que choca en BITACORA durante el rebase → resuelto y rebase continuado;
+  - (C) conflicto en README → exit 2, rebase a medias sin tocar.
+  Uso real aquí: borró la copia idéntica de `A-g3_30000k.zip`, trajo `14324fa` y reaplicó el autostash de BITACORA sin conflicto.
+
+## 2026-11-06 21:03 · PC1 · A-g5
+
+- Comando: `python student/train_agent.py --name A-g5 --init models/liga4/A-g4_4000k.zip --league-glob models/liga4/*.zip --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 30000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 30,008,160 · inicio 2026-11-06T17:34 · lr efectivo 0.0001
 - Evaluación determinista (2 partidas/rival):
 
 | rival | win | draw | lose | win rate | daño |
@@ -405,6 +452,17 @@
 
 - Comando: `python student/train_agent.py --name B-g2 --init models/league/B-g1_20000k.zip --reward agresiva --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --eval-games 2 --league-glob models/pool_B_g2/*.zip --league-share 0.6 --pfsp hard --maps mixed2 --scenario-prob 0.3 --timesteps 6000000 --snapshot-every 1500000 --n-envs 3 --opponents {"baseline:hard":0.4,"my:stoch:baseline:hard":0.2,"baseline:medium":0.1,"my:bushcamper":0.1,"my:hitandhide":0.1,"aggressive":0.05,"defensive":0.05}`
 - Pasos: 6,003,270 · inicio 2026-11-06T17:59 · lr efectivo 0.0001
+## 2026-11-06 21:10 · PC1 · pipeline: A-g5 → liga5 → A-g6
+
+- Liga: `results/league_2026-11-06_2104_liga5.json` (15 modelos + baselines + bots).
+- Elegido: `models/liga5/A-g5_24000k.zip` (mayor Elo principal de la rama A (2309)).
+- Lanzado A-g6 (PID 899642): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g6 --init models/liga5/A-g5_24000k.zip --league-glob 'models/liga5/*.zip' --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g6.out 2>&1 &`
+- Resumen: `results/pipeline_liga5.md`.
+
+## 2026-11-06 22:32 · PC1 · A-g6
+
+- Comando: `python student/train_agent.py --name A-g6 --init models/liga5/A-g5_24000k.zip --league-glob models/liga5/*.zip --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-06T21:10 · lr efectivo 0.0001
 - Evaluación determinista (2 partidas/rival):
 
 | rival | win | draw | lose | win rate | daño |
@@ -503,6 +561,12 @@
 | defensive | 2 | 0 | 0 | 100% | 3.00 |
 | baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
 | baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| random | 1 | 1 | 0 | 50% | 1.00 |
+| basic | 2 | 0 | 0 | 100% | 2.50 |
+| aggressive | 2 | 0 | 0 | 100% | 1.50 |
+| defensive | 1 | 1 | 0 | 50% | 0.50 |
+| baseline:easy | 2 | 0 | 0 | 100% | 2.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 2.00 |
 | baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
 
 - Notas: 
@@ -561,3 +625,30 @@
   Ritmo medio en GPU con E-g1 en paralelo: ~0,9M pasos por hora.
 - Curvas en `results/tb/D-g1b`. También se paró el sync, después de publicar `E-g1_2000k` a las 22:27.
 - Para reanudar: `logs/run_D-g1c.ps1`, con la misma config, `--init` desde el checkpoint de 5M y `--device cuda`. Con `--init` el contador vuelve a 0, así que se usa el nombre D-g1c para no machacar los snapshots `D-g1b_*k`: D-g1c_Nk lleva en realidad 6,5M + N pasos.
+## 2026-11-06 22:38 · PC1 · pipeline: A-g6 → liga6 → A-g7
+
+- Liga: `results/league_2026-11-06_2233_liga6.json` (9 modelos + baselines + bots).
+- Elegido: `models/liga6/A-g6_4000k.zip` (mayor Elo principal de la rama A (1828)).
+- Lanzado A-g7 (PID 944689): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g7 --init models/liga6/A-g6_4000k.zip --league-glob 'models/liga6/*.zip' --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g7.out 2>&1 &`
+- Resumen: `results/pipeline_liga6.md`.
+
+## 2026-11-06 23:55 · PC1 · Pipeline en pausa hasta mañana
+
+- Pipeline 3 (PID 798880) parado con `STOP_PIPELINE` mientras esperaba a A-g7 (generación 3/8). Hechas: liga5 → A-g6 y liga6 → A-g7. El archivo `STOP_PIPELINE` ya se ha borrado.
+- A-g7 (PID 944689) se deja terminar solo (12M pasos, hacia las 00:05). El sync (PID 795544) sigue en marcha.
+- Para reanudar donde se quedó (liga7 → A-g8 … A-g13; quedan 6 generaciones con la misma alternancia de PFSP, empezando por hard):
+  `nohup .venv/bin/python student/pipeline.py --wait-pid logs/A-g7.pid --generations 6 --timesteps 12000000 --pfsp-modes hard,variance,hard,variance,hard,variance > logs/pipeline4.out 2>&1 &`
+
+## 2026-11-07 00:00 · PC1 · pipeline.py: ramas desde archivo y reanudación tras un apagado
+
+- `student/league_branches.txt` (B, C, D, X1, E; una por línea, con `#` para comentarios): `pipeline.py` lo lee **antes de cada liga**, así que para añadir una rama basta con editarlo, sin relanzar. Si no existe, usa esa misma lista por defecto. A y R1 se ignoran aunque aparezcan.
+- Reanudación si se apaga el portátil antes de que A-g7 guarde `models/A-g7.zip`:
+  - Sin modelo final ya se usaba el último snapshot (no hacía falta cambiar nada).
+  - **Arreglado 1:** tras reiniciar, el PID de `logs/A-g7.pid` puede ser de otro proceso y el pipeline esperaría para siempre. Ahora comprueba en `/proc/<pid>/cmdline` que es `train_agent.py --name A-g7`; si no lo es, da el entrenamiento por terminado.
+  - **Arreglado 2:** un snapshot o modelo final cortado a medias por el apagado (zip inválido) se descarta con aviso, en vez de romper la liga.
+- Pruebas solo con archivos de mentira y `--dry-run`, sin lanzar nada:
+  - sin archivo de ramas → lista por defecto; con «B, E» → solo B y E; se relee en cada llamada;
+  - snapshot de 12M corrupto → se salta; sin `A-g7.zip` → último snapshot válido (10M); `A-g7.zip` corrupto → último snapshot;
+  - PID vivo de otro proceso → no espera; proceso que sí es `train_agent.py --name A-g7` → espera a que acabe.
+  - Con el PID real 944689, `is_training` = True.
+- El comando para reanudar mañana no cambia.
