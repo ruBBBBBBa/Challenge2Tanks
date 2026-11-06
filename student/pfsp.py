@@ -47,6 +47,7 @@ class PFSPCallback(BaseCallback):
         self.league_share, self.mode, self.every = league_share, mode, every
         self.min_weight = min_weight
         self.results = defaultdict(lambda: deque(maxlen=window))
+        self.recent = deque(maxlen=100)   # SB3 2.1 PPO does not log rollout/success_rate: we do
         self.episodes = 0
 
     def win_rate(self, spec):
@@ -63,6 +64,9 @@ class PFSPCallback(BaseCallback):
     def _on_step(self):
         for info, done in zip(self.locals["infos"], self.locals["dones"]):
             name = info.get("opponent", "") if done else ""
+            if done and "is_success" in info:
+                self.recent.append(info["is_success"])
+                self.logger.record("rollout/success_rate", sum(self.recent) / len(self.recent))
             if done and "result" in info and name.startswith("pool["):
                 self.results[name[5:-1]].append(info["is_success"])
                 self.episodes += 1

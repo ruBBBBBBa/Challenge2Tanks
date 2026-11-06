@@ -10,11 +10,15 @@ Maps: official, official_aug variants (student/maps) and --random N fixed-seed r
 --gen-maps N adds N maps from student/map_gen.py (seed --gen-seed, not the one of student/maps/gen):
 they get their own column (win rate and a separate Elo) and are left out of the main Elo and stats.
 Output: results/league_<date>.md and .json (Bradley-Terry Elo, win rate vs top-3, worst matchup,
-random maps, draws, damage, suspicious games, simulated bracket).
+random maps, draws, damage, suspicious games, simulated bracket, behaviour stats).
+Behaviour stats come from re-simulating every game from its actions (the engine is deterministic).
+--save-all-replays writes every game (replay format + league metadata) to <output>_replays.jsonl.gz,
+the input of student/winners_dataset.py.
 """
 import argparse
 import datetime
 import glob
+import gzip
 import itertools
 import json
 import os
@@ -31,8 +35,9 @@ sys.path.insert(0, ROOT)
 from student.envs import _official_aug  # noqa: E402
 from student.map_gen import STYLES, gen_map  # noqa: E402
 from tanks.agents.base import load_agent  # noqa: E402
+from tanks.game import BUSH, GameConfig, TanksGame  # noqa: E402
 from tanks.maps import list_maps, load_map, random_map  # noqa: E402
-from tanks.match import play_match, save_replay  # noqa: E402
+from tanks.match import REPLAY_VERSION, play_match, save_replay  # noqa: E402
 
 RANDOM_SEED0 = 10_000   # random map i uses np.random.default_rng(RANDOM_SEED0 + i)
 
@@ -57,22 +62,58 @@ def _agent(spec):
     return _AGENTS[spec]
 
 
-def _worker_init():
+_SAVE_REPLAYS = False
+
+
+def _worker_init(save_replays=False):
+    global _SAVE_REPLAYS
     import torch
     torch.set_num_threads(1)
+    _SAVE_REPLAYS = save_replays
+
+
+def replay_events(game_map, config, actions):
+    """Re-simulate a game from its actions. Yields (game, None) first, then (game, events) after each step."""
+    game = TanksGame(game_map, GameConfig.from_dict(config))
+    yield game, None
+    for acts in actions:
+        events = game.step(acts)
+        yield game, events
+
+
+def behaviour(game_map, res):
+    """Per player: shots, cancelled bullets, steps hidden in a bush (on a bush and invisible to the enemy)."""
+    shots, canc, hidden = [0, 0], [0, 0], [0, 0]
+    for game, ev in replay_events(game_map, res["config"], res["actions"]):
+        if ev is None:
+            continue
+        for p in (0, 1):
+            shots[p] += ev[p]["shots_fired"]
+            canc[p] += ev[p]["bullets_cancelled"]
+            t = game.tanks[p]
+            hidden[p] += int(game.tiles[t.y, t.x] == BUSH and not game.enemy_visible(1 - p))
+    assert game.winner == res["winner"] and shots == res["shots"], "replay diverged from the game"
+    return shots, canc, hidden
 
 
 def play(task, full=False):
     """task = (i, j, map_key, side, seed): participant i plays side `side` against j."""
     i, j, key, side, seed, si, sj = task
     a, b = (_agent(si), _agent(sj)) if side == 0 else (_agent(sj), _agent(si))
-    res = play_match(a, b, resolve_map(key), seed=seed)
+    game_map = resolve_map(key)
+    res = play_match(a, b, game_map, seed=seed)
     if full:
         return res
     me, en = side, 1 - side
-    return dict(i=i, j=j, map=key, side=side, seed=seed,
-                result=None if res["winner"] is None else ("win" if res["winner"] == me else "lose"),
-                dmg=res["damage"][me], dmg_en=res["damage"][en], steps=res["steps"], end=res["end_reason"])
+    shots, canc, hidden = behaviour(game_map, res)
+    row = dict(i=i, j=j, map=key, side=side, seed=seed,
+               result=None if res["winner"] is None else ("win" if res["winner"] == me else "lose"),
+               dmg=res["damage"][me], dmg_en=res["damage"][en], steps=res["steps"], end=res["end_reason"],
+               shots=shots[me], shots_en=shots[en], canc=canc[me], canc_en=canc[en],
+               hidden=hidden[me], hidden_en=hidden[en])
+    if _SAVE_REPLAYS:
+        row["replay"] = dict({k: v for k, v in res.items() if k != "frames"}, version=REPLAY_VERSION)
+    return row
 
 
 # --------------------------------------------------------------------- analysis
@@ -195,6 +236,23 @@ def analyse(names, kinds, all_rows, official_maps, random_maps, sims):
     matrix = {names[p]: {names[q]: float(np.mean([score[x[1] or "draw"] for x in per[p] if x[0] == q]))
                          for q in order[:10] if q != p and any(x[0] == q for x in per[p])}
               for p in order[:10]}
+    # behaviour (main maps only, like the rest of the table)
+    for p in range(n):
+        g = [(r, r["i"] == p) for r in rows if p in (r["i"], r["j"])]
+        if not g:
+            continue
+        mine = lambda r, first, k: r[k] if first else r[k + "_en"]   # noqa: E731
+        won = [r for r, f in g if r["result"] == ("win" if f else "lose")]
+        shots = sum(mine(r, f, "shots") for r, f in g)
+        stats[p]["beh"] = dict(
+            shots=shots / len(g),
+            accuracy=sum(mine(r, f, "dmg") for r, f in g) / shots if shots else float("nan"),
+            cancelled=sum(mine(r, f, "canc") for r, f in g) / len(g),
+            win_destroyed=sum(r["end"] == "destroyed" for r in won) / len(won) if won else float("nan"),
+            win_timeout=sum(r["end"] == "timeout" for r in won) / len(won) if won else float("nan"),
+            steps=float(np.mean([r["steps"] for r, _ in g])),
+            draws=sum(r["result"] is None for r, _ in g) / len(g),
+            hidden=sum(mine(r, f, "hidden") for r, f in g) / max(1, sum(r["steps"] for r, _ in g)))
     return [stats[p] for p in order], suspicious, matrix
 
 
@@ -229,6 +287,18 @@ def write_report(path, stats, suspicious, matrix, names, meta):
     L.append("|---" * (len(cols) + 1) + "|")
     for r in cols:
         L.append(f"| {r} | " + " | ".join(pct(matrix[r].get(c)) if c != r else "·" for c in cols) + " |")
+    L += ["", "## Comportamiento (mapas principales, sin gen)", "",
+          "| participante | disparos/partida | puntería | balas anuladas/partida | victorias por destrucción | "
+          "victorias por timeout | duración media | empates | pasos escondido |",
+          "|---|---|---|---|---|---|---|---|---|"]
+    for s in stats:
+        b = s.get("beh")
+        if b:
+            L.append(f"| {s['name']} | {b['shots']:.1f} | {pct(b['accuracy'])} | {b['cancelled']:.2f} | "
+                     f"{pct(b['win_destroyed'])} | {pct(b['win_timeout'])} | {b['steps']:.0f} | "
+                     f"{pct(b['draws'])} | {pct(b['hidden'])} |")
+    L += ["", "Puntería = impactos / disparos. Victorias por destrucción / timeout: sobre las victorias. "
+          "Escondido = en un arbusto e invisible para el rival.", ""]
     L += ["", f"## Partidas sospechosas (timeout con 0 daño): {len(suspicious)}", ""]
     for r in suspicious[:30]:
         L.append(f"- {names[r['i']]} (lado {r['side']}) vs {names[r['j']]} · {r['map']} · seed {r['seed']}")
@@ -250,6 +320,8 @@ def parse_args(argv=None):
     ap.add_argument("--bot-seeds", type=int, default=3, help="games per (map, side) when a bot plays")
     ap.add_argument("--procs", type=int, default=8)
     ap.add_argument("--sims", type=int, default=20000, help="bracket simulations")
+    ap.add_argument("--save-all-replays", action="store_true",
+                    help="write every game to <output>_replays.jsonl.gz (for winners_dataset.py)")
     ap.add_argument("--replays-dir", default=None, help="save replays of the losses of the top-3 models")
     ap.add_argument("--out", default="results")
     ap.add_argument("--tag", default="", help="suffix for the output file names")
@@ -294,20 +366,29 @@ def main(argv=None):
           f"({len(official_keys)} official + {len(aug_keys)} aug + {len(random_keys)} random + {len(gen_keys)} gen), "
           f"{len(tasks)} games, {args.procs} procs", flush=True)
 
+    date = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
+    os.makedirs(args.out, exist_ok=True)
+    base = os.path.join(args.out, f"league_{date}{'_' + args.tag if args.tag else ''}")
+    replays = gzip.open(base + "_replays.jsonl.gz", "wt", encoding="utf-8") if args.save_all_replays else None
+
     rows = []
-    with Pool(args.procs, initializer=_worker_init) as pool:
+    with Pool(args.procs, initializer=_worker_init, initargs=(args.save_all_replays,)) as pool:
         for k, r in enumerate(pool.imap_unordered(play, tasks, chunksize=4), 1):
+            if replays:
+                rep = r.pop("replay")
+                rep["league"] = dict(r, p0=names[r["i"] if r["side"] == 0 else r["j"]],
+                                     p1=names[r["j"] if r["side"] == 0 else r["i"]])
+                replays.write(json.dumps(rep) + "\n")
             rows.append(r)
             if k % max(1, len(tasks) // 20) == 0 or k == len(tasks):
                 el = time.time() - t0
                 print(f"[league] {k}/{len(tasks)} games · {el / 60:.1f} min · "
                       f"ETA {el / k * (len(tasks) - k) / 60:.1f} min", flush=True)
 
+    if replays:
+        replays.close()
+        print(f"[league] all replays in {base}_replays.jsonl.gz")
     stats, suspicious, matrix = analyse(names, kinds, rows, official_keys, random_keys, args.sims)
-
-    date = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
-    os.makedirs(args.out, exist_ok=True)
-    base = os.path.join(args.out, f"league_{date}{'_' + args.tag if args.tag else ''}")
     meta = dict(date=date, n_games=len(rows), procs=args.procs, sims=args.sims, specs=specs,
                 minutes=(time.time() - t0) / 60, maps=map_keys,
                 maps_summary=f"{len(official_keys)} oficiales + {len(aug_keys)} aug + {len(random_keys)} aleatorios + {len(gen_keys)} gen",
