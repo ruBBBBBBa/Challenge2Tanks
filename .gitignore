@@ -4,3 +4,5 @@ logs/
 models/checkpoints_*/
 out/
 .venv/
+models/shared/
+models/outbox/

@@ -9,9 +9,12 @@ Per generation (A-g2 -> liga2 -> A-g3 -> liga3 -> A-g4 with --generations 2):
  1. wait for the PID in --wait-pid (the running training);
  2. copy logs/<ID>_<n>/ (latest n) to results/tb/<ID>/;
  3. models/ligaK/: snapshots of <ID> every 4M steps + the last one, top-3 models of the previous league,
-    every snapshot of other branches in models/league/ (B-*, C-*, D-*, X1-*). Never models/reserved/;
+    the 2 most recent versions of each other branch (B, C, D, X1) from models/league/ + models/shared/
+    (D only if sb3-contrib/RecurrentPPO loads). Never R1-* or models/reserved/;
+    right before, `sync_models.py --once` brings the other computers' models to models/shared/;
  4. league.py on models/ligaK/*.zip (baselines, the 6 bots of league 1, --gen-maps 8, --save-all-replays);
- 5. pick the branch-A model with the best main Elo (tie: best P(champion));
+ 5. pick the branch-A model with the best main Elo (tie: best P(champion)) and copy it to
+    models/outbox/<snapshot name> (sync_models.py --loop --publish A sends it to the other computers);
  6. launch the next generation detached (nohup), unless another train_agent.py is running.
 Log: logs/pipeline.log. Summary per league: results/pipeline_ligaK.md (+ an entry in BITACORA.md).
 No git operations: the folder is shared, push by hand.
@@ -30,7 +33,8 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = sys.executable
-OTHER_BRANCHES = ("B-", "C-", "D-", "X1-")
+OTHER_BRANCHES = ["B", "C", "D", "X1"]
+OTHER_PER_BRANCH = 2
 BOTS = ["basic", "aggressive", "defensive", "my:rusher", "my:bushcamper", "my:hitandhide"]
 OPPONENTS = {"baseline:hard": 0.20, "my:stoch:baseline:hard": 0.15, "baseline:medium": 0.15, "basic": 0.05,
              "aggressive": 0.05, "defensive": 0.05, "my:rusher": 0.05, "my:bushcamper": 0.15,
@@ -146,18 +150,66 @@ def participants(run_id, every):
         for s in [s for s in d["ranking"] if s["kind"] == "model"][:3]:
             picked.append((os.path.join(ROOT, spec[s["name"]][len("model:"):]),
                            f"top-3 de {os.path.basename(prev)} (Elo {s['elo']:.0f})"))
-    for p in sorted(glob.glob(os.path.join(ROOT, "models", "league", "*.zip"))):
-        if os.path.basename(p).startswith(OTHER_BRANCHES):
-            picked.append((p, "otra rama"))
+    picked += other_branches()
 
     out, names = [], set()
     for p, why in picked:
         name = os.path.basename(p)
-        if "reserved" in os.path.relpath(p, ROOT).split(os.sep) or name in names:
+        if "reserved" in os.path.relpath(p, ROOT).split(os.sep) or name.startswith("R1") or name in names:
             continue
         names.add(name)
         out.append((p, why))
     return out
+
+
+def version_key(name):
+    """B-g2_6000k.zip -> (2, 6000); a final B-g2.zip sorts after its snapshots."""
+    m = re.fullmatch(r".*-g(\d+)(?:_(\d+)k)?\.zip", name)
+    return (int(m.group(1)), int(m.group(2)) if m.group(2) else float("inf")) if m else (-1, -1)
+
+
+def recurrent_ok():
+    try:
+        import sb3_contrib  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def other_branches(per_branch=OTHER_PER_BRANCH):
+    """Latest `per_branch` versions of each other branch, from models/league/ and models/shared/."""
+    branches = [b for b in OTHER_BRANCHES if b != "D" or recurrent_ok()]
+    found = {}
+    for d in ("league", "shared"):
+        for p in glob.glob(os.path.join(ROOT, "models", d, "*.zip")):
+            found.setdefault(os.path.basename(p), p)          # same name in both: keep models/league/
+    out = []
+    for b in branches:
+        mine = sorted((n for n in found if n.startswith(b + "-")), key=version_key)[-per_branch:]
+        out += [(found[n], f"rama {b}, de las {per_branch} más recientes ({os.path.basename(os.path.dirname(found[n]))}/)")
+                for n in mine]
+    return out
+
+
+def sync_once(dry):
+    cmd = [PY, "student/sync_models.py", "--once"]
+    log(f"{'[dry] would run' if dry else 'run'}: {' '.join(cmd)}")
+    if not dry:
+        rc = subprocess.run(cmd, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+        if rc != 0:
+            log(f"WARNING: sync_models.py --once failed (exit {rc}), see logs/sync.log; using what is in models/shared/")
+
+
+def to_outbox(path, dry):
+    """Copy the chosen A to models/outbox/ with its snapshot name (A-g3.zip -> A-g3_<steps>k.zip)."""
+    name = os.path.basename(path)
+    meta = os.path.join(ROOT, "models", name[:-4] + ".json")
+    if re.fullmatch(r".*-g\d+\.zip", name) and os.path.exists(meta):
+        name = f"{name[:-4]}_{json.load(open(meta, encoding='utf-8'))['steps'] // 1000}k.zip"
+    log(f"{'[dry] would copy' if dry else 'copy'} {os.path.relpath(path, ROOT)} -> models/outbox/{name}")
+    if not dry:
+        os.makedirs(os.path.join(ROOT, "models", "outbox"), exist_ok=True)
+        shutil.copy2(path, os.path.join(ROOT, "models", "outbox", name))
 
 
 def build_league_dir(k, parts, dry):
@@ -297,6 +349,7 @@ def main(argv=None):
             check_stop("wait")
             copy_curves(run_id, args.dry_run)
             check_stop("copy curves")
+            sync_once(args.dry_run)
             parts = participants(run_id, args.snapshot_step)
             build_league_dir(k, parts, args.dry_run)
             check_stop("league folder")
@@ -309,6 +362,7 @@ def main(argv=None):
                 path, best, d, why = choose(result_file)
                 chosen = os.path.relpath(path, ROOT).replace(os.sep, "/")
                 log(f"chosen: {chosen}: {why}")
+                to_outbox(path, args.dry_run)
             launched, shown = launch(new_id, train_cmd(new_id, chosen, k, pfsp, args), args)
             if d is not None:
                 write_summary(k, parts, league_cmd, result_file, d, chosen, why, launched, shown, run_id, new_id)
