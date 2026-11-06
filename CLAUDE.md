@@ -230,3 +230,8 @@ Si los bots propios aún no existen, reparte su peso entre `basic`, `aggressive`
   1. Copiar el modelo a `submissions/<equipo>/model.zip`.
   2. Ejecutar `python tools/evaluate.py --agent submissions/<equipo>/model.zip` en un entorno virtual limpio con `requirements.txt`, `numpy<2` y `sb3-contrib`.
 - Para el informe: guardar curvas de TensorBoard, tablas de la liga y GIFs, y dejar documentado que partimos de `baseline:hard`.
+
+## REGLAS IMPORTANTES
+Entrenamientos largos: lánzalos siempre desacoplados de la sesión (nohup o tmux en Linux/WSL; Start-Process en Windows), con la salida en logs/<ID>.out. Al lanzarlos, dime el PID y el comando para seguir el progreso.
+
+Rendimiento: lanza siempre con OMP_NUM_THREADS=1 MKL_NUM_THREADS=1, o pon torch.set_num_threads(1) en cada subproceso. Sin eso va unas 26 veces más lento (36 frente a 950 fps en PC1). También afecta a league.py y distill.py, que lanzan procesos que cargan modelos. Snapshots para la liga: como mínimo cada 2M pasos.
