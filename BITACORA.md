@@ -554,3 +554,10 @@
   - A-g4_4000k, B-g1_20000k y C-g1_20000k estaban en la liga de entrenamiento de E (`models/shared/*.zip`), y los mapas official_aug también están en mixed2. Es una evaluación contra rivales vistos, y probablemente sobreestima. Hay que confirmarlo en la liga con modelos que E no haya visto (B-g4, C-g4, A-g5, D-g1b…) y en mapas gen o aleatorios.
   - Con solo 2000k pasos (~15 min), la recompensa nodraw ya acaba con casi todos los empates contra A-g4: pasa de 40 empates a 4.
 - Nota: el primer push de esta entrada (422d729) llevaba marcas de conflicto con las entradas de PC3. Se corrige en el commit siguiente, conservando las dos partes.
+
+## 2026-11-06 23:50 · PC2 · D-g1b en pausa (apagado nocturno)
+
+- Parado a 5,03M pasos (~6,5M desde la destilación, contando los 1,5M de D-g1). El último checkpoint es `models/checkpoints_D-g1b/D-g1b_5000000_steps.zip` (23:46, verificado: incluye `policy.optimizer.pth`). Snapshots para la liga: `D-g1b_2000k` y `D-g1b_4000k`.
+  Ritmo medio en GPU con E-g1 en paralelo: ~0,9M pasos por hora.
+- Curvas en `results/tb/D-g1b`. También se paró el sync, después de publicar `E-g1_2000k` a las 22:27.
+- Para reanudar: `logs/run_D-g1c.ps1`, con la misma config, `--init` desde el checkpoint de 5M y `--device cuda`. Con `--init` el contador vuelve a 0, así que se usa el nombre D-g1c para no machacar los snapshots `D-g1b_*k`: D-g1c_Nk lleva en realidad 6,5M + N pasos.
