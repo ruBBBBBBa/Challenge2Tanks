@@ -151,7 +151,7 @@ Un único CLI para todos los entrenamientos:
 - Peso mínimo 0.02. La parte fija (bots y baselines) conserva su cuota.
 - Aplica los pesos con `env_method("set_pool_weights", w)` y registra en TensorBoard el win rate contra cada rival.
 
-### `student/league.py` (PC3)
+### `student/league.py` (PC1)
 - Participantes: glob de modelos, bots y baselines (`--models`, `--bots`, `--baselines`).
 - Todas las partidas son deterministas.
   - **Modelo contra modelo es determinista, así que basta una partida por (mapa, lado).**
@@ -182,9 +182,9 @@ Un único CLI para todos los entrenamientos:
 
 | Ordenador | Dueño de | Esta noche (jueves 5) |
 |---|---|---|
-| PC1 | `envs.py`, `train_agent.py`, `pfsp.py`, `my_opponents.py` | 1) `envs.py` + `train_agent.py` + specs estocásticos, con push lo antes posible porque PC3 depende de ello. 2) Lanzar A desde hard. 3) `pfsp.py` y bots propios para la liga del viernes. |
+| PC1 | `envs.py`, `train_agent.py`, `pfsp.py`, `my_opponents.py`, `league.py` | 1) `envs.py` + `train_agent.py` + specs estocásticos, con push lo antes posible porque PC3 depende de ello. 2) Lanzar A desde hard. 3) `pfsp.py` y bots propios para la liga del viernes. |
 | PC2 | `distill.py` | Medir velocidad. Escribir `distill.py`, generar datos y destilar. Lanzar el RL de D por la noche. |
-| PC3 | `my_rewards.py`, `league.py` | 1) `my_rewards.py` y push (PC1 lo importa). 2) Pruebas de 50k pasos. 3) Lanzar B y C desde hard, repartiendo los núcleos. 4) `league.py` listo para el viernes por la mañana. |
+| PC3 | `my_rewards.py` | 1) `my_rewards.py` y push (PC1 lo importa). 2) Pruebas de 50k pasos. 3) Lanzar B y C desde hard, repartiendo los núcleos. (`league.py` pasa a PC1 el viernes 6.) |
 
 **Mezcla inicial de rivales** (generación 1):
 

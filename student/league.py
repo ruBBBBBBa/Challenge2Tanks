@@ -1,0 +1,318 @@
+"""
+League: deterministic round robin between models, baselines and bots (CLAUDE.md section 6).
+
+    python student/league.py --models "models/league/A-g1_*k.zip" models/B-g1.zip \
+        --baselines hard medium --bots random basic aggressive defensive my:rusher my:bushcamper my:hitandhide \
+        --procs 8 --replays-dir replays/league
+
+Model vs model is deterministic: one game per (map, side). Any pair with a bot plays --bot-seeds games.
+Maps: official, official_aug variants (student/maps) and --random N fixed-seed random maps (reported apart).
+Output: results/league_<date>.md and .json (Bradley-Terry Elo, win rate vs top-3, worst matchup,
+random maps, draws, damage, suspicious games, simulated bracket).
+"""
+import argparse
+import datetime
+import glob
+import itertools
+import json
+import os
+import sys
+import time
+from collections import defaultdict
+from multiprocessing import Pool
+
+import numpy as np
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+from student.envs import _official_aug  # noqa: E402
+from tanks.agents.base import load_agent  # noqa: E402
+from tanks.maps import list_maps, load_map, random_map  # noqa: E402
+from tanks.match import play_match, save_replay  # noqa: E402
+
+RANDOM_SEED0 = 10_000   # random map i uses np.random.default_rng(RANDOM_SEED0 + i)
+
+
+# ---------------------------------------------------------------- games (workers)
+def resolve_map(key):
+    kind, value = key.split(":", 1)
+    if kind == "random":
+        return random_map(np.random.default_rng(int(value)))
+    return load_map(value)
+
+
+_AGENTS = {}
+
+
+def _agent(spec):
+    if spec not in _AGENTS:
+        _AGENTS[spec] = load_agent(spec)
+    return _AGENTS[spec]
+
+
+def _worker_init():
+    import torch
+    torch.set_num_threads(1)
+
+
+def play(task, full=False):
+    """task = (i, j, map_key, side, seed): participant i plays side `side` against j."""
+    i, j, key, side, seed, si, sj = task
+    a, b = (_agent(si), _agent(sj)) if side == 0 else (_agent(sj), _agent(si))
+    res = play_match(a, b, resolve_map(key), seed=seed)
+    if full:
+        return res
+    me, en = side, 1 - side
+    return dict(i=i, j=j, map=key, side=side, seed=seed,
+                result=None if res["winner"] is None else ("win" if res["winner"] == me else "lose"),
+                dmg=res["damage"][me], dmg_en=res["damage"][en], steps=res["steps"], end=res["end_reason"])
+
+
+# --------------------------------------------------------------------- analysis
+def bradley_terry(n, games, iters=500):
+    """Elo from (i, j, score_i) with score in {1, 0.5, 0}. One virtual draw per pair as prior."""
+    w = np.zeros((n, n))
+    for i, j, s in games:
+        w[i, j] += s
+        w[j, i] += 1 - s
+    played = (w + w.T) > 0
+    w += 0.5 * played
+    nij = w + w.T
+    p = np.ones(n)
+    for _ in range(iters):
+        denom = (nij / (p[:, None] + p[None, :])).sum(1)
+        p = np.where(denom > 0, w.sum(1) / np.maximum(denom, 1e-12), p)
+        p /= np.exp(np.log(p).mean())
+    return 400 * np.log10(p)
+
+
+def bo3(rng, a, b, maps, table):
+    """Best of 3 between participants a and b on `maps`, alternating sides. Ties -> damage -> coin."""
+    wins, dmg = [0, 0], [0, 0]
+    side = int(rng.integers(2))
+    for g in range(3):
+        if max(wins) == 2:
+            break
+        r = table[(a, b, maps[int(rng.integers(len(maps)))], (side + g) % 2)]
+        r = r[int(rng.integers(len(r)))]
+        if r["result"] == "win":
+            wins[0] += 1
+        elif r["result"] == "lose":
+            wins[1] += 1
+        dmg[0] += r["dmg"]
+        dmg[1] += r["dmg_en"]
+    if wins[0] != wins[1]:
+        return a if wins[0] > wins[1] else b
+    if dmg[0] != dmg[1]:
+        return a if dmg[0] > dmg[1] else b
+    return a if rng.random() < 0.5 else b
+
+
+def simulate_bracket(entrants, table, official_maps, final_maps, sims, seed=0):
+    rng = np.random.default_rng(seed)
+    champs = defaultdict(int)
+    for _ in range(sims):
+        alive = list(rng.permutation(entrants))
+        while len(alive) > 1:
+            maps = final_maps if len(alive) == 2 else official_maps
+            alive = [bo3(rng, alive[k], alive[k + 1], maps, table) for k in range(0, len(alive), 2)]
+        champs[int(alive[0])] += 1
+    return {i: champs[i] / sims for i in entrants}
+
+
+def analyse(names, kinds, rows, official_maps, random_maps, sims):
+    n = len(names)
+    score = {"win": 1.0, "draw": 0.5, "lose": 0.0}
+    games = [(r["i"], r["j"], score[r["result"] or "draw"]) for r in rows]
+    elo = bradley_terry(n, games)
+    if "baseline:hard" in names:
+        elo = elo - elo[names.index("baseline:hard")] + 1500
+    else:
+        elo = elo - elo.mean() + 1500
+    order = list(np.argsort(-elo))
+
+    # results seen from both sides: per[p] = list of (opponent, result, dmg, map)
+    flip = {"win": "lose", "lose": "win", None: None}
+    per = defaultdict(list)
+    table = defaultdict(list)
+    for r in rows:
+        per[r["i"]].append((r["j"], r["result"], r["dmg"], r["map"]))
+        per[r["j"]].append((r["i"], flip[r["result"]], r["dmg_en"], r["map"]))
+        table[(r["i"], r["j"], r["map"], r["side"])].append(r)
+        table[(r["j"], r["i"], r["map"], 1 - r["side"])].append(
+            dict(r, result=flip[r["result"]], dmg=r["dmg_en"], dmg_en=r["dmg"]))
+
+    def wr(lst):
+        return sum(x[1] == "win" for x in lst) / len(lst) if lst else float("nan")
+
+    stats = []
+    for p in range(n):
+        lst = per[p]
+        top3 = [q for q in order if q != p][:3]
+        by_opp = defaultdict(list)
+        for x in lst:
+            by_opp[x[0]].append(score[x[1] or "draw"])
+        worst = min(by_opp, key=lambda q: np.mean(by_opp[q])) if by_opp else None
+        stats.append(dict(
+            name=names[p], kind=kinds[p], elo=float(elo[p]), games=len(lst),
+            win=sum(x[1] == "win" for x in lst), draw=sum(x[1] is None for x in lst),
+            lose=sum(x[1] == "lose" for x in lst), win_rate=wr(lst),
+            wr_top3=wr([x for x in lst if x[0] in top3]),
+            worst=None if worst is None else names[worst],
+            worst_score=None if worst is None else float(np.mean(by_opp[worst])),
+            wr_random=wr([x for x in lst if x[3].startswith("random:")]),
+            wr_official=wr([x for x in lst if x[3] in official_maps]),
+            avg_damage=float(np.mean([x[2] for x in lst])) if lst else 0.0))
+
+    suspicious = [r for r in rows if r["end"] == "timeout" and r["dmg"] + r["dmg_en"] == 0]
+    for r in suspicious:
+        for p in (r["i"], r["j"]):
+            stats[p]["suspicious"] = stats[p].get("suspicious", 0) + 1
+
+    # bracket: the 8 best non-bots (largest power of two available); final on random maps
+    contenders = [p for p in order if kinds[p] != "bot"]
+    size = 2 ** int(np.log2(len(contenders))) if len(contenders) >= 2 else 0
+    size = min(size, 8)
+    entrants = contenders[:size]
+    final_maps = random_maps or official_maps
+    champ = simulate_bracket(entrants, table, official_maps or final_maps, final_maps, sims) if size >= 2 else {}
+    for p, c in champ.items():
+        stats[p]["p_champion"] = c
+
+    matrix = {names[p]: {names[q]: float(np.mean([score[x[1] or "draw"] for x in per[p] if x[0] == q]))
+                         for q in order[:10] if q != p and any(x[0] == q for x in per[p])}
+              for p in order[:10]}
+    return [stats[p] for p in order], suspicious, matrix
+
+
+# ------------------------------------------------------------------------ report
+def pct(x):
+    return "-" if x is None or x != x else f"{100 * x:.0f}%"
+
+
+def write_report(path, stats, suspicious, matrix, names, meta):
+    L = [f"# Liga {meta['date']}", "",
+         f"{len(names)} participantes · {meta['n_games']} partidas · mapas: {meta['maps_summary']} · "
+         f"{meta['minutes']:.1f} min · {meta['procs']} procesos", "",
+         "| # | participante | tipo | Elo | W-D-L | win rate | vs top-3 | peor emparejamiento | aleatorios | "
+         "oficiales | empates | daño | sospechosas | P(campeón) |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for k, s in enumerate(stats, 1):
+        worst = f"{s['worst']} ({pct(s['worst_score'])})" if s["worst"] else "-"
+        L.append(f"| {k} | {s['name']} | {s['kind']} | {s['elo']:.0f} | {s['win']}-{s['draw']}-{s['lose']} | "
+                 f"{pct(s['win_rate'])} | {pct(s['wr_top3'])} | {worst} | {pct(s['wr_random'])} | "
+                 f"{pct(s['wr_official'])} | {pct(s['draw'] / max(1, s['games']))} | {s['avg_damage']:.2f} | "
+                 f"{s.get('suspicious', 0)} | {pct(s.get('p_champion'))} |")
+    L += ["", "Puntuación = (W + 0.5·D) / partidas. Peor emparejamiento = rival con menor puntuación. "
+          "P(campeón) = bracket de 8 al mejor de 3 (rondas en oficiales, final en aleatorios), "
+          f"{meta['sims']} sorteos.", "", "## Cara a cara (top-10, puntuación de la fila contra la columna)", ""]
+    cols = list(matrix)
+    L.append("| | " + " | ".join(cols) + " |")
+    L.append("|---" * (len(cols) + 1) + "|")
+    for r in cols:
+        L.append(f"| {r} | " + " | ".join(pct(matrix[r].get(c)) if c != r else "·" for c in cols) + " |")
+    L += ["", f"## Partidas sospechosas (timeout con 0 daño): {len(suspicious)}", ""]
+    for r in suspicious[:30]:
+        L.append(f"- {names[r['i']]} (lado {r['side']}) vs {names[r['j']]} · {r['map']} · seed {r['seed']}")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(L) + "\n")
+
+
+# -------------------------------------------------------------------------- main
+def parse_args(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--models", nargs="*", default=[], help="paths or globs of .zip models")
+    ap.add_argument("--baselines", nargs="*", default=[], help="levels: easy medium hard")
+    ap.add_argument("--bots", nargs="*", default=[], help="bot specs: basic, my:rusher, ...")
+    ap.add_argument("--official", nargs="*", default=None, help="official maps (default: all)")
+    ap.add_argument("--no-aug", action="store_true", help="skip the official_aug variants")
+    ap.add_argument("--random", type=int, default=8, help="number of fixed-seed random maps")
+    ap.add_argument("--bot-seeds", type=int, default=3, help="games per (map, side) when a bot plays")
+    ap.add_argument("--procs", type=int, default=8)
+    ap.add_argument("--sims", type=int, default=20000, help="bracket simulations")
+    ap.add_argument("--replays-dir", default=None, help="save replays of the losses of the top-3 models")
+    ap.add_argument("--out", default="results")
+    ap.add_argument("--tag", default="", help="suffix for the output file names")
+    return ap.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    os.chdir(ROOT)
+    _worker_init()   # replays are played in this process
+    t0 = time.time()
+
+    specs, names, kinds = [], [], []
+    paths = sorted({p.replace(os.sep, "/") for g in args.models for p in (glob.glob(g) or [g])})
+    for p in paths:
+        specs.append(f"model:{p}"), names.append(os.path.splitext(os.path.basename(p))[0]), kinds.append("model")
+    for b in args.baselines:
+        specs.append(f"baseline:{b}"), names.append(f"baseline:{b}"), kinds.append("baseline")
+    for b in args.bots:
+        specs.append(b), names.append(b), kinds.append("bot")
+    if len(specs) < 2:
+        sys.exit("Need at least 2 participants")
+    assert len(set(names)) == len(names), f"duplicate names: {names}"
+
+    official = args.official if args.official is not None else list_maps()
+    official_keys = [f"official:{m}" for m in official]
+    aug_keys = [] if args.no_aug else [f"aug:{os.path.relpath(p, ROOT)}" for p in _official_aug()
+                                       if not p.endswith("__orig.txt")
+                                       and os.path.basename(p).split("__")[0] in official]
+    random_keys = [f"random:{RANDOM_SEED0 + k}" for k in range(args.random)]
+    map_keys = official_keys + aug_keys + random_keys
+
+    tasks = []
+    for i, j in itertools.combinations(range(len(specs)), 2):
+        seeds = range(1) if kinds[i] != "bot" and kinds[j] != "bot" else range(args.bot_seeds)
+        for key in map_keys:
+            for side in (0, 1):
+                for s in seeds:
+                    tasks.append((i, j, key, side, s, specs[i], specs[j]))
+    print(f"[league] {len(specs)} participants, {len(map_keys)} maps "
+          f"({len(official_keys)} official + {len(aug_keys)} aug + {len(random_keys)} random), "
+          f"{len(tasks)} games, {args.procs} procs", flush=True)
+
+    rows = []
+    with Pool(args.procs, initializer=_worker_init) as pool:
+        for k, r in enumerate(pool.imap_unordered(play, tasks, chunksize=4), 1):
+            rows.append(r)
+            if k % max(1, len(tasks) // 20) == 0 or k == len(tasks):
+                el = time.time() - t0
+                print(f"[league] {k}/{len(tasks)} games · {el / 60:.1f} min · "
+                      f"ETA {el / k * (len(tasks) - k) / 60:.1f} min", flush=True)
+
+    stats, suspicious, matrix = analyse(names, kinds, rows, official_keys, random_keys, args.sims)
+
+    date = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
+    os.makedirs(args.out, exist_ok=True)
+    base = os.path.join(args.out, f"league_{date}{'_' + args.tag if args.tag else ''}")
+    meta = dict(date=date, n_games=len(rows), procs=args.procs, sims=args.sims, specs=specs,
+                minutes=(time.time() - t0) / 60, maps=map_keys,
+                maps_summary=f"{len(official_keys)} oficiales + {len(aug_keys)} aug + {len(random_keys)} aleatorios",
+                args=vars(args))
+    write_report(base + ".md", stats, suspicious, matrix, names, meta)
+    with open(base + ".json", "w", encoding="utf-8") as f:
+        json.dump(dict(meta=meta, names=names, ranking=stats, matrix=matrix, games=rows), f)
+    print(f"[league] wrote {base}.md / .json")
+    for k, s in enumerate(stats[:10], 1):
+        print(f"  {k:2d}. {s['name']:28s} Elo {s['elo']:6.0f}  wr {pct(s['win_rate']):>4s}  "
+              f"top3 {pct(s['wr_top3']):>4s}  rnd {pct(s['wr_random']):>4s}  champ {pct(s.get('p_champion'))}")
+
+    if args.replays_dir:
+        idx = {nm: p for p, nm in enumerate(names)}
+        top = [idx[s["name"]] for s in stats if s["kind"] == "model"][:3]
+        for r in rows:
+            for p, lost in ((r["i"], r["result"] == "lose"), (r["j"], r["result"] == "win")):
+                if p in top and lost:
+                    res = play((r["i"], r["j"], r["map"], r["side"], r["seed"], specs[r["i"]], specs[r["j"]]),
+                               full=True)
+                    fn = f"{names[p]}__vs__{names[r['j'] if p == r['i'] else r['i']]}__" \
+                         f"{r['map'].replace(':', '_').replace('/', '_')}__s{r['side']}_{r['seed']}.json"
+                    save_replay(res, os.path.join(args.replays_dir, fn.replace(':', '_')))
+        print(f"[league] replays of top-3 losses in {args.replays_dir}")
+
+
+if __name__ == "__main__":
+    main()
