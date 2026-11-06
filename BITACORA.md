@@ -382,3 +382,135 @@
   - el resto, igual que A-g4: `--league-share 0.5 --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --eval-games 2` y la mezcla de rivales de A-g4.
   - Liga: los 8 de `models/shared/`. **~2100 pasos/s**, así que los 12M tardan ~1,6 h.
   - D-g1b, en GPU, pasa de ~33 a ~34–36 s por iteración con E-g1 corriendo (~5 % más lento).
+
+## 2026-11-06 19:20 · PC3 · C-g2
+
+- Comando: `python student/train_agent.py --name C-g2 --init models/league/C-g1_20000k.zip --reward superviviente --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --eval-games 2 --league-glob models/pool_C_g2/*.zip --league-share 0.6 --pfsp hard --maps mixed2 --scenario-prob 0.3 --timesteps 6000000 --snapshot-every 1500000 --n-envs 3 --opponents {"baseline:hard":0.4,"my:stoch:baseline:hard":0.2,"baseline:medium":0.1,"my:bushcamper":0.1,"my:hitandhide":0.1,"aggressive":0.05,"defensive":0.05}`
+- Pasos: 6,003,270 · inicio 2026-11-06T18:00 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-06 19:21 · PC3 · B-g2
+
+- Comando: `python student/train_agent.py --name B-g2 --init models/league/B-g1_20000k.zip --reward agresiva --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --eval-games 2 --league-glob models/pool_B_g2/*.zip --league-share 0.6 --pfsp hard --maps mixed2 --scenario-prob 0.3 --timesteps 6000000 --snapshot-every 1500000 --n-envs 3 --opponents {"baseline:hard":0.4,"my:stoch:baseline:hard":0.2,"baseline:medium":0.1,"my:bushcamper":0.1,"my:hitandhide":0.1,"aggressive":0.05,"defensive":0.05}`
+- Pasos: 6,003,270 · inicio 2026-11-06T17:59 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-06 19:21 · PC3 · C-g2 (exploiter de A, superviviente)
+
+- 6,003,270 pasos desde `C-g1_20000k.zip` contra `A-g4_4000k` (init 25 % vs A). Snapshots: C-g2_1500k: A 68 %, hard 100 %; C-g2_3000k: A 88 %, hard 90 %; C-g2_4500k: A 88 %, hard 100 %; C-g2_6000k: A 95 %, hard 90 %. Publicado: `C-g2_6000k.zip`. Tabla: `results/exploiters_C.md`.
+
+## 2026-11-06 19:21 · PC3 · B-g2 (exploiter de A, agresiva)
+
+- 6,003,270 pasos desde `B-g1_20000k.zip` contra `A-g4_4000k` (init 5 % vs A). Snapshots: B-g2_1500k: A 92 %, hard 90 %; B-g2_3000k: A 90 %, hard 100 %; B-g2_4500k: A 95 %, hard 100 %; B-g2_6000k: A 100 %, hard 100 %. Publicado: `B-g2_6000k.zip`. Tabla: `results/exploiters_B.md`.
+
+## 2026-11-06 20:33 · PC3 · C-g3
+
+- Comando: `python student/train_agent.py --name C-g3 --init models/league/C-g2_6000k.zip --reward superviviente --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --eval-games 2 --league-glob models/pool_C_g3/*.zip --league-share 0.6 --pfsp hard --maps mixed2 --scenario-prob 0.3 --timesteps 6000000 --snapshot-every 1500000 --n-envs 3 --opponents {"baseline:hard":0.4,"my:stoch:baseline:hard":0.2,"baseline:medium":0.1,"my:bushcamper":0.1,"my:hitandhide":0.1,"aggressive":0.05,"defensive":0.05}`
+- Pasos: 6,003,270 · inicio 2026-11-06T19:22 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-06 20:34 · PC3 · C-g3 (exploiter de A, superviviente)
+
+- 6,003,270 pasos desde `C-g2_6000k.zip` contra `A-g4_4000k` (init 95 % vs A). Snapshots: C-g3_1500k: A 75 %, hard 90 %; C-g3_3000k: A 95 %, hard 80 %; C-g3_4500k: A 88 %, hard 90 %; C-g3_6000k: A 88 %, hard 90 %. Publicado: `C-g3_6000k.zip`. Tabla: `results/exploiters_C.md`.
+
+## 2026-11-06 20:34 · PC3 · B-g3
+
+- Comando: `python student/train_agent.py --name B-g3 --init models/league/B-g2_6000k.zip --reward agresiva --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --eval-games 2 --league-glob models/pool_B_g3/*.zip --league-share 0.6 --pfsp hard --maps mixed2 --scenario-prob 0.3 --timesteps 6000000 --snapshot-every 1500000 --n-envs 3 --opponents {"baseline:hard":0.4,"my:stoch:baseline:hard":0.2,"baseline:medium":0.1,"my:bushcamper":0.1,"my:hitandhide":0.1,"aggressive":0.05,"defensive":0.05}`
+- Pasos: 6,003,270 · inicio 2026-11-06T19:22 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-06 20:35 · PC3 · B-g3 (exploiter de A, agresiva)
+
+- 6,003,270 pasos desde `B-g2_6000k.zip` contra `A-g4_4000k` (init 100 % vs A). Snapshots: B-g3_1500k: A 95 %, hard 100 %; B-g3_3000k: A 98 %, hard 100 %; B-g3_4500k: A 100 %, hard 100 %; B-g3_6000k: A 100 %, hard 100 %. Publicado: `B-g3_6000k.zip`. Tabla: `results/exploiters_B.md`.
+
+## 2026-11-06 21:51 · PC3 · C-g4
+
+- Comando: `python student/train_agent.py --name C-g4 --init models/league/C-g3_6000k.zip --reward superviviente --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --eval-games 2 --league-glob models/pool_C_g4/*.zip --league-share 0.6 --pfsp hard --maps mixed2 --scenario-prob 0.3 --timesteps 6000000 --snapshot-every 1500000 --n-envs 3 --opponents {"baseline:hard":0.4,"my:stoch:baseline:hard":0.2,"baseline:medium":0.1,"my:bushcamper":0.1,"my:hitandhide":0.1,"aggressive":0.05,"defensive":0.05}`
+- Pasos: 6,003,270 · inicio 2026-11-06T20:34 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 1 | 1 | 0 | 50% | 0.50 |
+| baseline:easy | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-06 21:51 · PC3 · B-g4
+
+- Comando: `python student/train_agent.py --name B-g4 --init models/league/B-g3_6000k.zip --reward agresiva --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --eval-games 2 --league-glob models/pool_B_g4/*.zip --league-share 0.6 --pfsp hard --maps mixed2 --scenario-prob 0.3 --timesteps 6000000 --snapshot-every 1500000 --n-envs 3 --opponents {"baseline:hard":0.4,"my:stoch:baseline:hard":0.2,"baseline:medium":0.1,"my:bushcamper":0.1,"my:hitandhide":0.1,"aggressive":0.05,"defensive":0.05}`
+- Pasos: 6,003,270 · inicio 2026-11-06T20:35 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-06 21:52 · PC3 · C-g4 (exploiter de A, superviviente)
+
+- 6,003,270 pasos desde `C-g3_6000k.zip` contra `A-g4_4000k` (init 88 % vs A). Snapshots: C-g4_1500k: A 75 %, hard 90 %; C-g4_3000k: A 82 %, hard 80 %; C-g4_4500k: A 98 %, hard 90 %; C-g4_6000k: A 100 %, hard 90 %. Publicado: `C-g4_6000k.zip`. Tabla: `results/exploiters_C.md`.
+
+## 2026-11-06 21:52 · PC3 · B-g4 (exploiter de A, agresiva)
+
+- 6,003,270 pasos desde `B-g3_6000k.zip` contra `A-g4_4000k` (init 100 % vs A). Snapshots: B-g4_1500k: A 88 %, hard 100 %; B-g4_3000k: A 100 %, hard 90 %; B-g4_4500k: A 98 %, hard 100 %; B-g4_6000k: A 95 %, hard 100 %. Publicado: `B-g4_3000k.zip`. Tabla: `results/exploiters_B.md`.
