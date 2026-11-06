@@ -194,3 +194,27 @@
   - empates sin daño: solo contra hard (espejo determinista, igual que hard contra sí mismo);
   - rachas largas de giros: ya están en hard (180 seguidos contra bushcamper). En T-agr y T-sup hay una de ~450 en un empate contra hard en un mapa aleatorio. **Vigilarlo en la liga 2.**
 - B-g1 (agresiva) y C-g1 (superviviente) lanzados con Start-Process y prioridad BelowNormal, `--n-envs 3` cada uno, OMP/MKL = 1, con los argumentos del encargo. ~1270 fps cada uno (≈ 4,5 h para 20M).
+## 2026-11-06 13:35 · PC1 · A-g2
+
+- Comando: `python student/train_agent.py --name A-g2 --init models/liga1/A-g1_16000k.zip --reward default --opponents {"baseline:hard":0.20,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15} --league-glob models/liga1/*.zip --league-share 0.5 --pfsp variance --timesteps 20000000 --n-envs 10 --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --snapshot-every 2000000 --eval-games 2`
+- Pasos: 20,008,170 · inicio 2026-11-06T10:54 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-06 13:38 · PC1 · pipeline: A-g2 → liga2 → A-g3
+
+- Liga: `results/league_2026-11-06_1335_liga2.json` (9 modelos + baselines + bots).
+- Elegido: `models/liga2/A-g2_20000k.zip` (mayor Elo principal de la rama A (2168)).
+- Lanzado A-g3 (PID 665930): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g3 --init models/liga2/A-g2_20000k.zip --league-glob 'models/liga2/*.zip' --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 30000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g3.out 2>&1 &`
+- Resumen: `results/pipeline_liga2.md`.
