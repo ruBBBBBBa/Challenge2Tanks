@@ -102,3 +102,27 @@
   - 49 % con `step_count` avanzado; obs = `vector_obs`; los finales son correctos;
   - el bloqueo se reproduce: con los dos avanzando hacia la casilla común, ninguno se mueve.
   Con `--scenario-prob 0.3` y la close-prob por defecto: 15,5 % random, 7,2 % diag y 7,7 % faceoff. Entrenamiento corto: OK.
+
+## 2026-11-06 ~11:40 · PC1 · student/pipeline.py (encadenador de generaciones)
+
+- Bucle de `--generations N` (por defecto 2):
+  1. espera al PID de `--wait-pid`;
+  2. copia las curvas a `results/tb/<ID>/`;
+  3. monta `models/ligaK/` con:
+     - snapshots de la generación cada 4M pasos, más el último (si el modelo final coincide con el último snapshot, entra solo uno);
+     - los 3 mejores modelos de la última liga;
+     - los snapshots `B-*`, `C-*`, `D-*` y `X1-*` de `models/league/`;
+     - nunca nada de `models/reserved/`;
+  4. juega la liga (`--gen-maps 8 --save-all-replays --bot-seeds 1`, 6 bots);
+  5. elige el modelo de la rama A con mayor Elo (desempate por P(campeón));
+  6. lanza la siguiente generación desacoplada (`--pfsp` variance y después hard, `mixed2`, `--scenario-prob 0.3`, 30M pasos, `ent_coef` 0.02 y la mezcla de rivales nueva).
+- Seguridad:
+  - no lanza nada si hay otro `train_agent.py` corriendo (lo deja apuntado en el log);
+  - `STOP_PIPELINE` en la raíz lo para tras el paso en curso;
+  - no sobrescribe un `models/ligaK/` que ya tenga contenido;
+  - no hace operaciones de git.
+- Trazabilidad: `logs/pipeline.log`, `results/pipeline_ligaK.md` y una entrada en esta bitácora por generación.
+- Pruebas:
+  - `--dry-run` en el repo real: no escribe nada y detecta A-g2 en marcha («NOT LAUNCHED»).
+  - Ejecución mínima en un worktree aislado: A-g2 simulado con 2 snapshots, liga de 1 mapa y entrenamientos de 20k pasos (nice 19), con 2 generaciones encadenadas (liga2 → A-g3 → liga3 → A-g4) en 3 min. El desempate por P(campeón) se probó con un empate real de Elo. `STOP_PIPELINE`: OK.
+  - **Fallo encontrado y corregido:** el entrenamiento lanzado por el propio pipeline se quedaba zombi y `kill(pid, 0)` lo daba por vivo. Ahora se recoge con `waitpid(WNOHANG)`.
