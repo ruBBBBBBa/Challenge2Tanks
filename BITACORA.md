@@ -255,6 +255,10 @@
 
 - Comando: `python student/train_agent.py --name C-g1 --reward superviviente --init baseline:hard --timesteps 20000000 --lr 1e-4 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --snapshot-every 2000000 --eval-games 2 --n-envs 3 --opponents {"baseline:hard": 0.25, "my:stoch:baseline:hard": 0.20, "baseline:medium": 0.10, "basic": 0.10, "aggressive": 0.10, "defensive": 0.10, "my:rusher": 0.05, "my:bushcamper": 0.05, "my:hitandhide": 0.05}`
 - Pasos: 20,008,170 · inicio 2026-11-06T13:06 · lr efectivo 0.0001
+## 2026-11-06 16:58 · PC1 · A-g3
+
+- Comando: `python student/train_agent.py --name A-g3 --init models/liga2/A-g2_20000k.zip --league-glob models/liga2/*.zip --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 30000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 30,008,160 · inicio 2026-11-06T13:38 · lr efectivo 0.0001
 - Evaluación determinista (2 partidas/rival):
 
 | rival | win | draw | lose | win rate | daño |
@@ -309,3 +313,9 @@
   - **B-g1 contra C-g1: 16 empates, daño 2-2.** Se bloquean entre ellos, como hard contra sí mismo. Es la debilidad a vigilar en la liga 2.
 - Trampas (25 partidas cada uno): las rachas largas de giros heredadas de hard han desaparecido (máximo 3-6 seguidos frente a 180 de hard). 0 empates sin daño contra bots y nada de esconderse en arbustos al final. Episodios mucho más cortos (58-73 pasos de media frente a 199 de hard). Apuntar con el arma cargada sin disparar: 6/63 (B) y 2/64 (C) pasos; conviene revisarlo en replays.
 - Snapshots subidos para la liga 2: `B-g1_10000k`, `B-g1_20000k`, `C-g1_10000k`, `C-g1_20000k`. Curvas en `results/tb/B-g1` y `results/tb/C-g1`.
+## 2026-11-06 17:03 · PC1 · pipeline: A-g3 → liga3 → A-g4
+
+- Liga: `results/league_2026-11-06_1659_liga3.json` (11 modelos + baselines + bots).
+- Elegido: `models/liga3/A-g3.zip` (mayor Elo principal de la rama A (2350)).
+- Lanzado A-g4 (PID 769646): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g4 --init models/liga3/A-g3.zip --league-glob 'models/liga3/*.zip' --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 30000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g4.out 2>&1 &`
+- Resumen: `results/pipeline_liga3.md`.
