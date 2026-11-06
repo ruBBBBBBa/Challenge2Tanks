@@ -126,3 +126,71 @@
   - `--dry-run` en el repo real: no escribe nada y detecta A-g2 en marcha («NOT LAUNCHED»).
   - Ejecución mínima en un worktree aislado: A-g2 simulado con 2 snapshots, liga de 1 mapa y entrenamientos de 20k pasos (nice 19), con 2 generaciones encadenadas (liga2 → A-g3 → liga3 → A-g4) en 3 min. El desempate por P(campeón) se probó con un empate real de Elo. `STOP_PIPELINE`: OK.
   - **Fallo encontrado y corregido:** el entrenamiento lanzado por el propio pipeline se quedaba zombi y `kill(pid, 0)` lo daba por vivo. Ahora se recoge con `waitpid(WNOHANG)`.
+
+## 2026-11-06 13:04 · PC3 · T-agr
+
+- Comando: `python student/train_agent.py --name T-agr --reward agresiva --init baseline:hard --timesteps 50000 --lr 1e-4 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --n-envs 2 --blend-steps 20000 --snapshot-every 10000000 --eval-games 4 --opponents {"baseline:hard": 0.25, "my:stoch:baseline:hard": 0.20, "baseline:medium": 0.10, "basic": 0.10, "aggressive": 0.10, "defensive": 0.10, "my:rusher": 0.05, "my:bushcamper": 0.05, "my:hitandhide": 0.05}`
+- Pasos: 57,344 · inicio 2026-11-06T13:03 · lr efectivo 0.0001
+- Evaluación determinista (4 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 3 | 1 | 0 | 75% | 2.25 |
+| basic | 4 | 0 | 0 | 100% | 3.00 |
+| aggressive | 4 | 0 | 0 | 100% | 3.00 |
+| defensive | 4 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 2 | 2 | 0 | 50% | 1.50 |
+| baseline:hard | 0 | 4 | 0 | 0% | 0.00 |
+| baseline:medium | 4 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-06 13:04 · PC3 · T-sup
+
+- Comando: `python student/train_agent.py --name T-sup --reward superviviente --init baseline:hard --timesteps 50000 --lr 1e-4 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --n-envs 2 --blend-steps 20000 --snapshot-every 10000000 --eval-games 4 --opponents {"baseline:hard": 0.25, "my:stoch:baseline:hard": 0.20, "baseline:medium": 0.10, "basic": 0.10, "aggressive": 0.10, "defensive": 0.10, "my:rusher": 0.05, "my:bushcamper": 0.05, "my:hitandhide": 0.05}`
+- Pasos: 57,344 · inicio 2026-11-06T13:03 · lr efectivo 0.0001
+- Evaluación determinista (4 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 2 | 0 | 50% | 1.50 |
+| basic | 4 | 0 | 0 | 100% | 3.00 |
+| aggressive | 4 | 0 | 0 | 100% | 3.00 |
+| defensive | 4 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 2 | 2 | 0 | 50% | 1.50 |
+| baseline:hard | 0 | 4 | 0 | 0% | 0.00 |
+| baseline:medium | 2 | 0 | 2 | 50% | 2.50 |
+
+- Notas: 
+
+## 2026-11-06 13:04 · PC3 · T-gen
+
+- Comando: `python student/train_agent.py --name T-gen --reward generalista --init baseline:hard --timesteps 50000 --lr 1e-4 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --n-envs 2 --blend-steps 20000 --snapshot-every 10000000 --eval-games 4 --opponents {"baseline:hard": 0.25, "my:stoch:baseline:hard": 0.20, "baseline:medium": 0.10, "basic": 0.10, "aggressive": 0.10, "defensive": 0.10, "my:rusher": 0.05, "my:bushcamper": 0.05, "my:hitandhide": 0.05}`
+- Pasos: 57,344 · inicio 2026-11-06T13:03 · lr efectivo 0.0001
+- Evaluación determinista (4 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 2 | 0 | 50% | 1.50 |
+| basic | 4 | 0 | 0 | 100% | 3.00 |
+| aggressive | 4 | 0 | 0 | 100% | 3.00 |
+| defensive | 3 | 1 | 0 | 75% | 2.25 |
+| baseline:easy | 2 | 2 | 0 | 50% | 1.50 |
+| baseline:hard | 0 | 4 | 0 | 0% | 0.00 |
+| baseline:medium | 4 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-06 ~13:30 · PC3 · my_rewards.py, pruebas de 50k y lanzamiento de B-g1 y C-g1
+
+- PC3: Windows sin WSL, Python 3.10, 6 núcleos físicos / 12 lógicos. `checkenv`: OK. numpy 1.26.4, SB3 y sb3-contrib 2.9.2.
+- `student/my_rewards.py`: clases `GeneralistaReward`, `AgresivaReward` y `SupervivienteReward` (subclases de `ShapedReward`) con `blend` y `shaping_scale`. Shaping por potencial F = 0.995·Φ(s′) − Φ(s), con Φ = 0 en el estado terminal. Términos de Φ: distancia normalizada (si el enemigo no se ve, la máxima), enemigo en mi mira con el arma cargada, el mismo con el enemigo recargando (agresiva), bala enemiga que viene hacia mí a ≤ 6 casillas y yo en su mira con cooldown > 1 (superviviente).
+  - Agresiva: hits_dealt 3, hits_taken −1.5, draw −5, step −0.01.
+  - Superviviente: hits_taken −3.5, step −0.003.
+- Pruebas de 50k pasos desde hard (T-gen, T-agr, T-sup; 2 envs cada una, ~1080 fps): sin errores, lr efectivo 1e-4.
+- Revisión de 25 partidas deterministas por modelo (4 mapas oficiales + 1 aleatorio × hard, rusher, bushcamper, hitandhide y basic):
+  - apuntar con el arma cargada sin disparar: 0 casos en todos los modelos;
+  - esconderse en un arbusto al final: 0 %;
+  - empates sin daño: solo contra hard (espejo determinista, igual que hard contra sí mismo);
+  - rachas largas de giros: ya están en hard (180 seguidos contra bushcamper). En T-agr y T-sup hay una de ~450 en un empate contra hard en un mapa aleatorio. **Vigilarlo en la liga 2.**
+- B-g1 (agresiva) y C-g1 (superviviente) lanzados con Start-Process y prioridad BelowNormal, `--n-envs 3` cada uno, OMP/MKL = 1, con los argumentos del encargo. ~1270 fps cada uno (≈ 4,5 h para 20M).
