@@ -218,3 +218,20 @@
 - Elegido: `models/liga2/A-g2_20000k.zip` (mayor Elo principal de la rama A (2168)).
 - Lanzado A-g3 (PID 665930): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g3 --init models/liga2/A-g2_20000k.zip --league-glob 'models/liga2/*.zip' --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 30000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g3.out 2>&1 &`
 - Resumen: `results/pipeline_liga2.md`.
+
+## 2026-11-06 14:30 · PC2 (torre, Windows, 8 núcleos físicos / 16 hilos) · D-distill y D-g1
+
+- `gen --steps 1500000 --n-envs 8`: ~4 min (~6000 pasos/s), 5672 episodios. Hard determinista: 1.00 contra basic y aggressive, 0.89 contra defensive, 0.42 de victorias (0.44 de empates) contra medium y 1.00 de empates contra hard.
+- `train --epochs 20 --threads 8` (con seg-len 2048 por defecto, 728 segmentos): ~55–60 s por época, 20 min en total. **Acuerdo en validación: 0.906** (KL 0.061). Ha ido subiendo: 0.53 en la época 1, 0.80 en la 7 y 0.88 en la 12.
+- `evaluate.py --games 40`, determinista (D-distill / hard):
+  - basic: 97.5 / 100;
+  - aggressive: 100 / 100;
+  - defensive: 92.5 / 97.5;
+  - random: 60 / 52.5;
+  - easy: 5 / 25;
+  - medium: 27.5 / 65;
+  - hard: 0 / 0 (38 y 40 empates).
+  Contra los bots juega parecido a hard, pero rinde peor contra los baselines.
+- Lanzado D-g1 (PID 11512), con la mezcla de rivales del plan pero quitando medium para meter `model:models/league/A-g2_20000k.zip` (0.15): `train_agent.py --name D-g1 --algo recurrent --init models/D-distill.zip --lr 5e-5 --timesteps 60000000 --snapshot-every 2000000 --maps mixed2 --scenario-prob 0.3 --ent-coef 0.02 --eval-games 2 --n-envs 8`.
+  - Script: `logs/run_D-g1.ps1`; salida en `logs/D-g1.out` y `logs/D-g1.err`.
+  - LR efectivo de 5e-5, comprobado. **~200 pasos/s**: domina la actualización de RecurrentPPO en 1 hilo. Ritmo de ~0,7M por hora y ~2,8 h por snapshot.
