@@ -383,10 +383,17 @@
   - Liga: los 8 de `models/shared/`. **~2100 pasos/s**, así que los 12M tardan ~1,6 h.
   - D-g1b, en GPU, pasa de ~33 a ~34–36 s por iteración con E-g1 corriendo (~5 % más lento).
 
+<<<<<<< Updated upstream
 ## 2026-11-06 19:20 · PC3 · C-g2
 
 - Comando: `python student/train_agent.py --name C-g2 --init models/league/C-g1_20000k.zip --reward superviviente --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --eval-games 2 --league-glob models/pool_C_g2/*.zip --league-share 0.6 --pfsp hard --maps mixed2 --scenario-prob 0.3 --timesteps 6000000 --snapshot-every 1500000 --n-envs 3 --opponents {"baseline:hard":0.4,"my:stoch:baseline:hard":0.2,"baseline:medium":0.1,"my:bushcamper":0.1,"my:hitandhide":0.1,"aggressive":0.05,"defensive":0.05}`
 - Pasos: 6,003,270 · inicio 2026-11-06T18:00 · lr efectivo 0.0001
+=======
+## 2026-11-06 19:57 · PC2 · E-g1 (entrada automática de train_agent.py, que pone «PC1» fijo)
+
+- Comando: `python student/train_agent.py --name E-g1 --init models/shared/A-g4_4000k.zip --league-glob models/shared/*.zip --league-share 0.5 --pfsp hard --reward nodraw --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 6 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-06T18:28 · lr efectivo 0.0001
+>>>>>>> Stashed changes
 - Evaluación determinista (2 partidas/rival):
 
 | rival | win | draw | lose | win rate | daño |
@@ -395,11 +402,16 @@
 | basic | 2 | 0 | 0 | 100% | 3.00 |
 | aggressive | 2 | 0 | 0 | 100% | 3.00 |
 | defensive | 2 | 0 | 0 | 100% | 3.00 |
+<<<<<<< Updated upstream
 | baseline:easy | 2 | 0 | 0 | 100% | 3.00 |
+=======
+| baseline:easy | 2 | 0 | 0 | 100% | 1.00 |
+>>>>>>> Stashed changes
 | baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
 | baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
 
 - Notas: 
+<<<<<<< Updated upstream
 
 ## 2026-11-06 19:21 · PC3 · B-g2
 
@@ -514,3 +526,5 @@
 ## 2026-11-06 21:52 · PC3 · B-g4 (exploiter de A, agresiva)
 
 - 6,003,270 pasos desde `B-g3_6000k.zip` contra `A-g4_4000k` (init 100 % vs A). Snapshots: B-g4_1500k: A 88 %, hard 100 %; B-g4_3000k: A 100 %, hard 90 %; B-g4_4500k: A 98 %, hard 100 %; B-g4_6000k: A 95 %, hard 100 %. Publicado: `B-g4_3000k.zip`. Tabla: `results/exploiters_B.md`.
+=======
+>>>>>>> Stashed changes
