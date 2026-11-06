@@ -172,6 +172,8 @@ REWARDS = {
     "generalista": GeneralistaReward,
     "agresiva": AgresivaReward,
     "superviviente": SupervivienteReward,
+    # rama E (anti-empates): la recompensa por defecto con el empate mucho más castigado
+    "nodraw": WeightedReward({"draw": -6.0}),
 }
 
 # compatibilidad con train.py / train_advanced.py, que importan my_reward

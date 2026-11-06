@@ -364,3 +364,21 @@
   **Ojo:** el contador de pasos vuelve a 0, así que D-g1b_Nk lleva en realidad 1,5M + N pasos.
 - Ritmo sin otro proceso en la máquina: ~33 s por iteración (~250 pasos/s), con la GPU al ~60 %. Es **prácticamente igual** que D-g1 solo en CPU con `--learner-threads 8` (~35 s).
   El 1,5× del benchmark se debía a la competencia por la CPU. La ganancia real es que la CPU queda libre para otro entrenamiento.
+
+## 2026-11-06 ~18:45 · PC2 · Compatibilidad SB3 2.1.0 y lanzamiento de E-g1 (anti-empates)
+
+- **Versiones.** Nuevo `.venv-sb21` (sin git): SB3 2.1.0, sb3-contrib 2.1.0, gymnasium 0.29.1, numpy 1.26.4 y torch 2.15.0+cpu. Con Python 3.12 no hay torch 2.0.x.
+  - Prueba con el cargador oficial `ModelAgent(path, deterministic=True)` y 10 partidas contra baseline:hard (4 oficiales, lados alternos).
+  - En `.venv-sb21` y en `.venv` (SB3 2.9.2) salen **resultados idénticos**:
+    - `D-distill.zip`: 0-10-0;
+    - `D-g1_1500000_steps.zip`: 0-10-0;
+    - zip guardado entrenando en GPU: 0-8-2.
+  - **Los zips guardados con SB3 2.9.2 (CPU o GPU) cargan y juegan igual en 2.1.0.** Falta comprobar torch 2.0.x, que necesita Python ≤ 3.11.
+- **`student/my_rewards.py`:** nuevo preset `"nodraw"` = `WeightedReward({"draw": -6.0})`. Es la recompensa por defecto con draw −6; win y lose siguen en ±10. No tiene `blend`, así que se usa tal cual desde el paso 0.
+- **sync:** `PC=PC2 sync_models.py --loop --publish D E` (PID 33884, `logs/sync.out`). Ha bajado 8 modelos a `models/shared/`.
+- **E-g1** (PID 35892, `logs/run_E-g1.ps1`, `logs/E-g1.out`):
+  - no hay ninguna entrada de A-g5 en la bitácora, así que se usa **la config de A-g4** (la última de A apuntada);
+  - cambios respecto a A-g4: `--init models/shared/A-g4_4000k.zip --reward nodraw --league-glob 'models/shared/*.zip' --pfsp hard --timesteps 12000000 --snapshot-every 2000000 --n-envs 6`;
+  - el resto, igual que A-g4: `--league-share 0.5 --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --eval-games 2` y la mezcla de rivales de A-g4.
+  - Liga: los 8 de `models/shared/`. **~2100 pasos/s**, así que los 12M tardan ~1,6 h.
+  - D-g1b, en GPU, pasa de ~33 a ~34–36 s por iteración con E-g1 corriendo (~5 % más lento).
