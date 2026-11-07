@@ -1,0 +1,7 @@
+# Resumen de la noche · PC2 (escrito el 2026-11-07 a las 18:57)
+
+1. **D3a (prueba) mejora a D2b:** destilado desde D2b con 198k pasos de partidas ganadoras de PC1 más 360k de A-g6 (`--ce-coef 0.5 --vf-coef 0.1`, 20 min en GPU, val acc 0,857). En eval_vs.py (11 rivales, oficiales y aleatorios) gana 12 series y pierde 3 de 22; D2b gana 9 y pierde 7. Mejora sobre todo contra B-g4, C-g4 y B-g7, y sigue perdiendo contra A-g9 y C-g7 en aleatorios (`results/eval_D3a_vs_D2b.md`).
+2. **D3 de verdad: NO hecho.** Hacia las 18:50, Claude Code paró por falta de RAM la tarea que vigilaba si llegaban los datos `--play` de PC1, y no puede relanzarla por su cuenta. Por eso nadie va a detectar los datos esta noche.
+3. **D2-g1 sigue toda la noche, sin tocar** (como en el punto 3 de tus instrucciones): PID 31440, GPU, 2,05M pasos a las 18:56, con vigilante (PID 33404) y evaluación automática de cada snapshot (PID 34408, filas en `results/eval_D2-g1.md`, copia a `models/outbox/` y sync PID 33816).
+4. **RAM:** es el cuello de botella. D2-g1 con 8 entornos ocupa ~6,5 GB y cada evaluación de snapshot suma más. Para el D3 de verdad: cargar los 2–3M pasos de PC1 y los datos de A-g6 a la vez probablemente obligará a parar D2-g1 o a usar subconjuntos.
+5. **Para mañana:** destilar D3 con los datos `--play` (mismo proceso que D3a, 60 min). Para el `--verify` dejé copias locales de A-g9 y A-g7 en `models/A-g9.zip` y `models/candidatos/` (sin git). Después, comparar D3 con D2b y con el mejor snapshot de D2-g1 antes de decidir de dónde sale el RL.

@@ -1122,3 +1122,8 @@
   Series (P > 50 % ganada, P < 50 % perdida, 48–49 % = todo empates): **D3a gana 12 y pierde 3 de 22; D2b gana 9 y pierde 7.** D3a pierde algo contra hard y E (sigue ganando la serie) y mejora contra B-g4, C-g4 y, sobre todo, B-g7, que destrozaba a D2b. Contra A-g9 y C-g7 sigue perdiendo en aleatorios.
 - Es solo la prueba del proceso: no se relanza el RL desde D3a. La decisión se toma con D3, con los datos `--play` de PC1. Tablas en `results/eval_D3a_vs_D2b.md/.json`.
 - Nota: el campo `init` del json de `distill.py` guarda la cadena de maestros de los datos, no el `--init`; aquí el `--init` fue D2b-distill.
+
+### 2026-11-07 18:57 · PC2 · Plan de la noche y situación
+- **D3 (con los datos `--play` de PC1) no se hará esta noche desde PC2.** Claude Code paró la tarea que vigilaba la llegada de esos datos (sondeo de git cada 5 min hasta las 23:00) por falta de memoria, y no la relanza sin que se le pida. Así que, como dicen las instrucciones, **D2-g1 sigue toda la noche**.
+- Estado a las 18:56: D2-g1 (PID 31440) en 2,05M pasos; vigilante (PID 33404), evaluación automática (PID 34408) y sync (PID 33816) vivos.
+- Resumen en `results/resumen_noche_PC2.md`.
