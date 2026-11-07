@@ -1127,3 +1127,46 @@
 - **D3 (con los datos `--play` de PC1) no se hará esta noche desde PC2.** Claude Code paró la tarea que vigilaba la llegada de esos datos (sondeo de git cada 5 min hasta las 23:00) por falta de memoria, y no la relanza sin que se le pida. Así que, como dicen las instrucciones, **D2-g1 sigue toda la noche**.
 - Estado a las 18:56: D2-g1 (PID 31440) en 2,05M pasos; vigilante (PID 33404), evaluación automática (PID 34408) y sync (PID 33816) vivos.
 - Resumen en `results/resumen_noche_PC2.md`.
+## 2026-11-07 18:47 · PC1 · A-g11
+
+- Comando: `python student/train_agent.py --name A-g11 --init models/liga10/A-g9.zip --league-glob models/liga10/*.zip --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-07T17:15 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 2.50 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 2 | 0 | 0 | 100% | 1.50 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 2.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-07 19:25 · PC1 · Liga 11, pipeline en pausa y dataset de ganadores para D3 (estocástico)
+
+- **Liga 11** (18:47–18:55): el vigilante creó `STOP_PIPELINE` en cuanto empezó la liga y el pipeline paró justo después, **sin lanzar A-g12** (por eso no hay `pipeline_liga11.md` ni copia a outbox).
+  Comparación con el candidato A-g9: ningún A nuevo lo supera en los tres criterios. **A-g11 (final)** es el más cercano al perfil buscado: 89 % de series contra rivales de fuera, 11 derrotas, R1 100 %/20 victorias, **hard 6-2-0 en oficiales** y `evaluate --games 4` 86 % (hard 4-0-0). A-g9: 95 %, 10, 100 %/18, hard 2-6-0, 61 %.
+- **Dataset de D3** (`student/winners_dataset.py --play-replays`, nuevo modo):
+  `python student/winners_dataset.py --play-replays --maps-from results/league_2026-11-07_1749_d3data.json --target 2500000 --procs 10 --out results/d3play_replays.jsonl.gz`
+  - Participantes: los 8 de `d3data` (A-g9, A-g10_8000k, A-g7_8000k, B-g7_6000k, C-g7_4500k, D2b-distill, hard y medium). R1 rechazado por código; comprobado que no aparece.
+  - Mapas: los mismos 32 de `d3data` (4 oficiales, 12 aug, 8 aleatorios y 8 gen), por los dos lados, desde el inicio normal (sin inicios preparados, para que la repetición reconstruya la partida exacta).
+  - **Partidas estocásticas.** En cada paso, cada jugador calcula con el mismo estado de entrada (LSTM incluida) la acción **determinista**, que es la etiqueta, y la muestreada, que es la que juega. La etiqueta coincide con la jugada en el 57 % de los pasos.
+  - **10 752 partidas, 8 129 decisivas, 2 505 064 pasos del ganador**, en 24,5 min con 10 procesos. Tope del 35 % por modelo (no hizo falta recortar).
+
+| ganador | pasos | % | partidas ganadas | | perdedor | pasos | % |
+|---|---|---|---|---|---|---|---|
+| A-g9 | 672 637 | 27 % | 1 388 | | hard | 562 224 | 22 % |
+| A-g10_8000k | 546 515 | 22 % | 1 173 | | D2b-distill | 535 050 | 21 % |
+| C-g7_4500k | 493 108 | 20 % | 1 700 | | medium | 447 495 | 18 % |
+| A-g7_8000k | 322 669 | 13 % | 1 013 | | A-g7_8000k | 393 820 | 16 % |
+| B-g7_6000k | 289 814 | 12 % | 1 568 | | B-g7_6000k | 265 007 | 11 % |
+| D2b-distill | 116 787 | 5 % | 850 | | A-g10_8000k | 117 994 | 5 % |
+| hard | 41 897 | 2 % | 295 | | C-g7_4500k | 98 180 | 4 % |
+| medium | 21 637 | 1 % | 142 | | A-g9 | 85 294 | 3 % |
+
+  - En git: `results/d3play_replays.jsonl.gz` (**4,4 MB**: cada línea es una repetición con mapa, configuración y acciones de los dos, más las etiquetas deterministas del ganador como texto) y `results/d3play_replays.json` (recuentos). El `.npz` no se sube.
+  - **Para PC2:** `python student/winners_dataset.py --from-play results/d3play_replays.jsonl.gz --verify 20 --out <ruta>.npz`. Reconstruye las obs con el motor (determinista) y genera el formato de `distill.py train` (obs, probs = one-hot de la etiqueta, rew = default_reward del ganador, done, más `episode_start`). `--verify` comprueba que el modelo ganador en determinista, con su LSTM, reproduce las etiquetas.
+  - Verificado con una muestra de 40 partidas (5 por ganador, incluido D2b-distill): las 40 coinciden.

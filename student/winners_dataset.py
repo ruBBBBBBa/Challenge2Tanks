@@ -18,6 +18,17 @@ Stops at --target kept steps; a model above 50 % of the steps is cut down to the
 Saves also `episode_start` and a .json with the counts per model, rival and mode. R1 is refused.
 
     python student/winners_dataset.py --play --target 3000000 --procs 10 --out models/checkpoints_D-g2/winners_play.npz
+
+--play-replays mode (dataset for D3, what goes to git): stochastic games between PLAY_MODELS on the maps of a
+league (--maps-from <league.json>), both sides, from the normal start (so a replay rebuilds them exactly).
+Every player computes, at each step and with the same input state (LSTM state included), the deterministic
+action (the label) and the sampled one (the one played). Only decisive games are kept: the replay plus the
+winner's deterministic labels. No model above --max-share of the winner steps. Output: one .jsonl.gz.
+--from-play rebuilds the distill.py .npz from it (obs from the engine, probs = one-hot of the labels).
+
+    python student/winners_dataset.py --play-replays --maps-from results/league_..._d3data.json --target 2500000 \
+        --out results/d3play_replays.jsonl.gz
+    python student/winners_dataset.py --from-play results/d3play_replays.jsonl.gz --verify 20 --out <dataset>.npz
 """
 import argparse
 import gzip
@@ -191,6 +202,172 @@ def play_dataset(args):
         print(f"  by {k}: " + ", ".join(f"{n} {v} ({v / tot:.0%})" for n, v in steps[k].most_common()))
 
 
+def spec_path(spec):
+    from tanks.agents.base import BASELINES_DIR
+    if spec.startswith("baseline:"):
+        return os.path.join(BASELINES_DIR, spec.split(":", 1)[1] + ".zip")
+    return spec.split(":", 1)[1] if spec.startswith("model:") else spec
+
+
+def labeling_agent(spec, name):
+    """ModelAgent that plays the sampled action and records the deterministic one (same input state)."""
+    from tanks.agents.model_agent import ModelAgent
+
+    class LabelingAgent(ModelAgent):
+        def reset(self, seed=None):
+            super().reset(seed)
+            self.labels = []
+
+        def act(self, state):
+            self._ensure_loaded()
+            obs = vector_obs(state)
+            det, new_state = self.model.predict(obs, state=self._rnn_state, episode_start=self._episode_start,
+                                                deterministic=True)
+            smp, _ = self.model.predict(obs, state=self._rnn_state, episode_start=self._episode_start,
+                                        deterministic=False)
+            self._rnn_state = new_state          # the LSTM state does not depend on how the action is picked
+            self._episode_start = np.zeros((1,), dtype=bool)
+            self.labels.append(int(np.asarray(det).item()))
+            return int(np.asarray(smp).item())
+
+    return LabelingAgent(spec_path(spec), deterministic=False, name=name)
+
+
+_LAGENTS = {}
+
+
+def play_replay_task(task):
+    """(name0, spec0, name1, spec1, map_key, seed) -> replay line (decisive games only) or None, + steps."""
+    n0, s0, n1, s1, key, seed = task
+    import torch
+    torch.set_num_threads(1)
+    from student.league import resolve_map
+    from tanks.match import REPLAY_VERSION, play_match
+    agents = []
+    for n, s in ((n0, s0), (n1, s1)):
+        if n not in _LAGENTS:
+            _LAGENTS[n] = labeling_agent(s, n)
+        agents.append(_LAGENTS[n])
+    res = play_match(agents[0], agents[1], resolve_map(key), seed=seed)
+    if res["winner"] is None:
+        return None, res["steps"]
+    w = res["winner"]
+    labels = agents[w].labels
+    assert len(labels) == len(res["actions"])
+    rep = {k: v for k, v in res.items() if k != "frames"}
+    rep.update(version=REPLAY_VERSION, league=dict(p0=n0, p1=n1, map=key, seed=seed, winner_name=(n0, n1)[w]),
+               labels="".join(map(str, labels)))
+    return rep, res["steps"]
+
+
+def play_replays(args):
+    import gzip as gz
+    from multiprocessing import Pool
+    models = {k: v for k, v in PLAY_MODELS.items() if not args.models or k in args.models}
+    for spec in models.values():
+        _no_r1(spec)
+    with open(args.maps_from, encoding="utf-8") as f:
+        maps = json.load(f)["meta"]["maps"]
+    names = list(models)
+    pairs = [(a, b) for k, a in enumerate(names) for b in names[k + 1:]]
+    reps, steps, played, seed, t0 = [], Counter(), Counter(), args.seed, time.time()
+    rng = np.random.default_rng(args.seed)
+
+    def balanced(lines):
+        """Cap every winner at C with C = max_share * sum(min(steps_i, C)) (water filling), so that nobody
+        ends above max_share. If that is impossible (too few winners), the dominant ones are cut to the next."""
+        st = Counter()
+        for r in lines:
+            st[r["league"]["winner_name"]] += len(r["labels"])
+        if len(st) < 2:
+            return list(lines), st
+        cap = args.max_share * sum(st.values())
+        for _ in range(100):
+            new = args.max_share * sum(min(v, cap) for v in st.values())
+            if abs(new - cap) < 1:
+                break
+            cap = new
+        if cap < 0.5 * sorted(st.values())[-2]:          # infeasible share: equalise with the runner-up
+            cap = sorted(st.values())[-2]
+        kept, acc = [], Counter()
+        for k in rng.permutation(len(lines)):
+            r = lines[k]
+            m = r["league"]["winner_name"]
+            if acc[m] + len(r["labels"]) <= cap:
+                kept.append(r)
+                acc[m] += len(r["labels"])
+        return kept, acc
+
+    with Pool(args.procs) as pool:
+        while True:
+            tasks = []
+            for a, b in pairs:
+                for key in maps:
+                    for side in (0, 1):
+                        seed += 1
+                        n0, n1 = (a, b) if side == 0 else (b, a)
+                        tasks.append((n0, models[n0], n1, models[n1], key, seed))
+            for rep, n in pool.imap_unordered(play_replay_task, tasks, chunksize=8):
+                played["games"] += 1
+                played["steps"] += n
+                if rep is not None:
+                    reps.append(rep)
+            kept, st = balanced(reps)
+            total = sum(st.values())
+            print(f"[play-replays] {played['games']} games, {len(reps)} decisive, {total} winner steps kept "
+                  f"· {(time.time() - t0) / 60:.1f} min", flush=True)
+            if total >= args.target:
+                break
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    with gz.open(args.out, "wt", encoding="utf-8") as f:
+        for r in kept:
+            f.write(json.dumps(r, separators=(",", ":")) + "\n")
+    by_rival, games_won = Counter(), Counter()
+    for r in kept:
+        m = r["league"]
+        by_rival[m["p1"] if m["winner_name"] == m["p0"] else m["p0"]] += len(r["labels"])
+        games_won[m["winner_name"]] += 1
+    agree = sum(sum(a == b for a, b in zip(r["labels"], (str(x[r["winner"]]) for x in r["actions"]))) for r in kept)
+    meta = dict(models=models, maps=maps, max_share=args.max_share, games=played["games"], decisive=len(reps),
+                kept_games=len(kept), winner_steps=total, steps_by_winner=dict(st), games_won=dict(games_won),
+                steps_by_loser=dict(by_rival), label_equals_played=agree / max(1, total),
+                minutes=(time.time() - t0) / 60, size_mb=os.path.getsize(args.out) / 2**20)
+    with open(args.out.replace(".jsonl.gz", "") + ".json", "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=1)
+    print(f"saved {args.out} ({meta['size_mb']:.1f} MB): {len(kept)} games, {total} winner steps; "
+          f"label == played action in {meta['label_equals_played']:.0%} of the steps")
+    for k, c in (("winner", st), ("loser", by_rival)):
+        print(f"  steps by {k}: " + ", ".join(f"{n} {v} ({v / total:.0%})" for n, v in c.most_common()))
+
+
+def from_play(args):
+    """Rebuild the distill.py dataset from a --play-replays file: obs from the engine, labels as probs."""
+    import gzip as gz
+    episodes, checked, cache = [], 0, {}
+    models = {}
+    meta_path = args.from_play.replace(".jsonl.gz", "") + ".json"
+    if os.path.exists(meta_path):
+        models = json.load(open(meta_path, encoding="utf-8"))["models"]
+    for line in gz.open(args.from_play, "rt", encoding="utf-8"):
+        rep = json.loads(line)
+        obs, _, rews = episode(rep, rep["winner"])
+        labels = np.frombuffer(rep["labels"].encode(), dtype=np.uint8) - ord("0")
+        if checked < args.verify and models:
+            pred = predict(cache, spec_path(models[rep["league"]["winner_name"]]), obs)   # LSTM state carried
+            assert np.array_equal(pred, labels), f"labels do not match the deterministic {rep['league']['winner_name']}"
+            checked += 1
+        episodes.append((obs, labels.astype(np.int64), rews))
+    total = sum(len(e[1]) for e in episodes)
+    data, fill = pack(episodes, args.streams or max(1, total // 4096))
+    data["episode_start"] = np.zeros_like(data["done"])
+    data["episode_start"][0] = True
+    data["episode_start"][1:] = data["done"][:-1]
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    np.savez(args.out, **data)
+    print(f"saved {args.out}: {len(episodes)} episodes, {total} steps, shape {data['obs'].shape[:2]} "
+          f"(fill {100 * fill:.1f}%), verified {checked} episodes against the deterministic winner")
+
+
 def pack(episodes, n_streams):
     """Greedy: longest episode first into the shortest stream. -> dict of (L, E, ...) arrays."""
     streams = [[] for _ in range(n_streams)]
@@ -218,6 +395,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--league", help="results/league_<...>.json (its _replays.jsonl.gz next to it)")
     ap.add_argument("--play", action="store_true", help="play new games instead of reading league replays")
+    ap.add_argument("--play-replays", action="store_true", help="stochastic games -> replays + deterministic labels")
+    ap.add_argument("--maps-from", default=None, help="--play-replays: league .json whose maps are used")
+    ap.add_argument("--max-share", type=float, default=0.35, help="--play-replays: max share of one winner")
+    ap.add_argument("--from-play", default=None, help="rebuild the .npz from a --play-replays .jsonl.gz")
     ap.add_argument("--models", nargs="*", default=None, help="--play: subset of PLAY_MODELS")
     ap.add_argument("--maps", default="mixed2")
     ap.add_argument("--scenario-prob", type=float, default=0.3)
@@ -235,6 +416,10 @@ def main(argv=None):
     os.chdir(ROOT)
     if args.play:
         return play_dataset(args)
+    if args.play_replays:
+        return play_replays(args)
+    if args.from_play:
+        return from_play(args)
     if not args.league:
         ap.error("--league is required (or use --play)")
 
