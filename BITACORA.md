@@ -689,3 +689,41 @@
 | baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
 
 - Notas: 
+
+## 2026-11-07 12:45 · PC1 · Pipeline reanudado tras reinicio
+
+- El portátil se reinició durante la noche; A-g7 ya había terminado (`models/A-g7.zip` a las 00:13). No quedaba nada en marcha: ni el pipeline ni el sync.
+- **Corregido en `pipeline.py`:** el modelo final se guarda después del rollout que cruza el último snapshot, así que su `steps` es hasta ~8k mayor (A-g7: 12 006 540 frente a `A-g7_12000k`). Con la comparación exacta entraban los dos en la liga (también `A-g2_20000k` y `A-g2.zip` en ligas anteriores). Ahora se descarta el snapshot si está a menos de 10k pasos del final.
+- Reanudado: pipeline **PID 6561** (`logs/pipeline.pid`, salida en `logs/pipeline4.out`), con liga7 → A-g8 … A-g13 y PFSP hard,variance,… :
+  `nohup .venv/bin/python student/pipeline.py --wait-pid logs/A-g7.pid --generations 6 --timesteps 12000000 --pfsp-modes hard,variance,hard,variance,hard,variance > logs/pipeline4.out 2>&1 &`
+  El PID guardado de A-g7 (944689) no correspondía a ningún proceso tras el reinicio y se detectó como terminado.
+- Sync relanzado igual que antes: `nohup .venv/bin/python student/sync_models.py --loop --publish A > logs/sync.out 2>&1 &`, **PID 6564** (`logs/sync.pid`).
+
+## 2026-11-07 12:48 · PC1 · pipeline: A-g7 → liga7 → A-g8
+
+- Liga: `results/league_2026-11-07_1244_liga7.json` (9 modelos + baselines + bots).
+- Elegido: `models/liga7/A-g7_8000k.zip` (mayor Elo principal de la rama A (1903)).
+- Lanzado A-g8 (PID 7228): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g8 --init models/liga7/A-g7_8000k.zip --league-glob 'models/liga7/*.zip' --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g8.out 2>&1 &`
+- Resumen: `results/pipeline_liga7.md`.
+
+## 2026-11-07 13:30 · PC1 · league.py: cuadro con la regla del README
+
+- Regla del README: «best of 3 (draws do not count; tie-break by damage dealt)». La simulación anterior contaba los empates como partidas jugadas y, si la serie acababa igualada, tiraba una moneda: en la liga 7, el 44 % de las series de las rondas y el 71 % de las finales se decidían a cara o cruz.
+- Ahora:
+  - una partida empatada no cuenta y se juega la siguiente combinación de mapa y lado del mismo conjunto (oficiales en las rondas, aleatorios en la final), alternando lados, hasta que alguien gane 2 o se agoten las combinaciones distintas (8 y 16);
+  - después gana quien tenga más victorias; si siguen iguales, el daño total de la serie; si también es igual, moneda.
+- Columna nueva en la tabla de la liga, «series a moneda»: el % de las series de cada modelo que se deciden por moneda, más el total del cuadro en la nota.
+- Pruebas con tablas sintéticas: las combinaciones siempre son distintas y con lados alternos (también con un número par de mapas); todo empate → moneda; una sola victoria → gana; solo empates pero más daño → gana por daño.
+- Liga 7 recalculada con la regla nueva (mismas partidas, 20 000 sorteos):
+
+| modelo | Elo | P(campeón) antes | P(campeón) ahora | series a moneda |
+|---|---|---|---|---|
+| A-g7_8000k | 1903 | 25,6 % | 12,7 % | 47 % |
+| A-g6_4000k | 1898 | 13,0 % | 0,7 % | 43 % |
+| A-g7_4000k | 1877 | 18,2 % | 5,4 % | 33 % |
+| C-g4_6000k | 1863 | 2,9 % | 0,0 % | 0 % |
+| B-g4_3000k | 1862 | 5,3 % | 2,7 % | 18 % |
+| A-g7 (final) | 1814 | 35,0 % | **78,5 %** | 16 % |
+
+  Series a moneda en todo el cuadro: 25,5 %. El A-g7 final no pierde ninguna partida contra el resto del cuadro y gana 2 de las 8 combinaciones oficiales contra casi todos: cuando los empates se repiten, eso le basta para ganar casi todas las series. A-g7_8000k empata las 8 combinaciones oficiales contra varios A y depende de la moneda en casi la mitad de sus series.
+- El pipeline en marcha la usará a partir de la liga 8 (lanza `league.py` como proceso nuevo).
