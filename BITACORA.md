@@ -652,3 +652,22 @@
   - PID vivo de otro proceso → no espera; proceso que sí es `train_agent.py --name A-g7` → espera a que acabe.
   - Con el PID real 944689, `is_training` = True.
 - El comando para reanudar mañana no cambia.
+
+## 2026-11-07 · PC2 · Evaluación de D y de los modelos nuevos de cada rama
+
+- `student/eval_snapshots.py`, determinista, 40 partidas por pareja (16 official_aug + 4 aleatorios × 2 lados). Tabla completa en `results/eval_2026-11-07_D_y_nuevos.md` y `.json`. Total W-D-L sin contar el cruce consigo mismo:
+
+| modelo | hard | total sin hard (5 rivales) |
+|---|---|---|
+| A-g6_4000k | 36-4-0 | 76-120-4 |
+| C-g4_6000k | 38-2-0 | 72-74-14 |
+| B-g4_3000k | 40-0-0 | 62-90-8 |
+| A-g5_24000k | 40-0-0 | 30-52-78 |
+| E-g1_2000k | 40-0-0 | 2-20-138 |
+| D-g1b_5M (ckpt) | 8-30-2 | 6-22-172 |
+| D-g1b_4000k | 12-22-6 | 0-8-192 |
+| D-g1b_2000k | 6-34-0 | 0-22-178 |
+
+- **D no cumple el criterio de CLAUDE.md** (≥ 50 % contra hard en determinista): su mejor resultado es 12-22-6 (30 %), y pierde casi todo contra los modelos nuevos. D-g1c (la continuación de D-g1b) quedó lanzado en GPU antes de esta evaluación.
+- **E-g1_2000k no generaliza:** gana 40-0-0 a hard, pero pierde 0-0-40 contra A-g6, 2-10-28 contra A-g5, 0-8-32 contra B-g4 y 0-2-38 contra C-g4. El 152-8-0 de ayer era contra rivales de su propia liga (A-g4, B-g1, C-g1).
+- **Arriba:** A-g6, C-g4 y B-g4 casi solo empatan entre ellos. A-g6 contra B y C: 4-34-2 y 6-32-2. B contra C: 8-30-2. El problema de los empates sigue entre los mejores, y en el torneo se desempata por daño.
