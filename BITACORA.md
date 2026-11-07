@@ -928,6 +928,10 @@
 
 - Comando: `python student/train_agent.py --name C-g5 --init models/league/C-g4_6000k.zip --reward superviviente --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --eval-games 2 --league-glob models/pool_C_g5/*.zip --league-share 0.6 --pfsp hard --maps mixed2 --scenario-prob 0.3 --timesteps 6000000 --snapshot-every 1500000 --n-envs 3 --opponents {"baseline:hard":0.4,"my:stoch:baseline:hard":0.2,"baseline:medium":0.1,"my:bushcamper":0.1,"my:hitandhide":0.1,"aggressive":0.05,"defensive":0.05}`
 - Pasos: 6,003,270 · inicio 2026-11-07T13:05 · lr efectivo 0.0001
+## 2026-11-07 17:05 · PC1 · A-g10
+
+- Comando: `python student/train_agent.py --name A-g10 --init models/liga9/A-g9.zip --league-glob models/liga9/*.zip --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-07T15:42 · lr efectivo 0.0001
 - Evaluación determinista (2 partidas/rival):
 
 | rival | win | draw | lose | win rate | daño |
@@ -1055,3 +1059,41 @@
 ## 2026-11-07 17:02 · PC3 · B-g7 (exploiter de A, agresiva)
 
 - 6,003,270 pasos desde `B-g6_4500k.zip` contra `A-g7_8000k` (init 92 % vs A). Snapshots: B-g7_1500k: A 60 %, hard 90 %; B-g7_3000k: A 72 %, hard 90 %; B-g7_4500k: A 55 %, hard 100 %; B-g7_6000k: A 72 %, hard 90 %. Publicado: `B-g7_6000k.zip`. Tabla: `results/exploiters_B.md`.
+| random | 2 | 0 | 0 | 100% | 2.50 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 2 | 0 | 0 | 100% | 2.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-07 17:15 · PC1 · pipeline: A-g10 → liga10 → A-g11
+
+- Liga: `results/league_2026-11-07_1705_liga10.json` (12 modelos + baselines + bots).
+- Elegido: `models/liga10/A-g9.zip` (mayor Elo principal de la rama A (1748)).
+- Lanzado A-g11 (PID 23783): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g11 --init models/liga10/A-g9.zip --league-glob 'models/liga10/*.zip' --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g11.out 2>&1 &`
+- Resumen: `results/pipeline_liga10.md`.
+
+## 2026-11-07 17:55 · PC1 · Partidas para el dataset de ganadores de D3 (solo repeticiones)
+
+- Comando (nice 19, 3 procesos, sin bots y **sin jueces**, así que R1 ni se carga):
+  `python student/league.py --models models/A-g9.zip models/league/A-g10_8000k.zip models/candidatos/A-g7_8000k.zip models/league/B-g7_6000k.zip models/league/C-g7_4500k.zip models/league/D2b-distill.zip --baselines hard medium --gen-maps 8 --save-all-replays --judges none --procs 3 --tag d3data`
+- 8 participantes, todos deterministas, una partida por (pareja, mapa, lado). 32 mapas: 4 oficiales, 12 aug, 8 aleatorios y 8 gen. **1 792 partidas** en ~5 min. Comprobado: R1 no aparece en ninguna repetición.
+- En git: `results/league_2026-11-07_1749_d3data.json` (0,43 MB) y `results/league_2026-11-07_1749_d3data_replays.jsonl.gz` (0,36 MB). El dataset no se sube: se genera con `student/winners_dataset.py --league results/league_2026-11-07_1749_d3data.json --top N`.
+- **Decisivas: 800 de 1 792 (45 %)**, 992 empates. Por tipo de mapa: oficiales 112, aug 314, aleatorios 214, gen 160.
+
+| modelo | victorias | % de las decisivas | pasos del ganador |
+|---|---|---|---|
+| B-g7_6000k | 178 | 22,2 % | 30 780 |
+| C-g7_4500k | 142 | 17,8 % | 31 706 |
+| A-g9 | 116 | 14,5 % | 57 342 |
+| D2b-distill | 116 | 14,5 % | 16 790 |
+| A-g7_8000k | 114 | 14,2 % | 19 940 |
+| A-g10_8000k | 86 | 10,8 % | 41 252 |
+| baseline:hard | 26 | 3,2 % | 3 170 |
+| baseline:medium | 22 | 2,8 % | 1 860 |
+
+- En total hay 202 840 pasos del lado ganador; ningún modelo pasa del 50 %. Para llegar a los ~3M pasos harían falta partidas estocásticas (`winners_dataset.py --play`, ya preparado).
+- Ranking: C-g7_4500k 1809, A-g9 1793, B-g7_6000k 1776, A-g10_8000k 1766, A-g7_8000k 1744, D2b-distill 1716, hard 1500, medium 1448.
