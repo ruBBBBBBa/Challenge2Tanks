@@ -38,10 +38,10 @@ RL_KWARGS = dict(n_steps=1024, batch_size=2048, gamma=GAMMA, gae_lambda=0.95, n_
 POLICY_KWARGS = dict(lstm_hidden_size=256, n_lstm_layers=1, net_arch=dict(pi=[256], vf=[256]))
 
 
-def make_env(seed):
+def make_env(seed, opponents=GEN_OPPONENTS, maps="mixed", scenario_prob=0.0):
     def _f():
         th.set_num_threads(1)
-        env = StudentTanksEnv(opponent=GEN_OPPONENTS, maps="mixed")
+        env = StudentTanksEnv(opponent=opponents, maps=maps, scenario_prob=scenario_prob)
         env.reset(seed=seed)
         return env
     return _f
@@ -50,8 +50,11 @@ def make_env(seed):
 # ---------------------------------------------------------------------- gen
 def gen(args):
     th.set_num_threads(2)
-    teacher = PPO.load(HARD, device="cpu")
-    venv = SubprocVecEnv([make_env(args.seed + i) for i in range(args.n_envs)])
+    teacher = PPO.load(args.teacher, device="cpu")  # any PPO MlpPolicy zip (hard by default)
+    opponents = args.opponents or GEN_OPPONENTS
+    print(f"teacher {args.teacher} | maps {args.maps} | scenario_prob {args.scenario_prob} | opponents {opponents}")
+    venv = SubprocVecEnv([make_env(args.seed + i, opponents, args.maps, args.scenario_prob)
+                          for i in range(args.n_envs)])
     rng = np.random.default_rng(args.seed)
     E, L = args.n_envs, args.steps // args.n_envs
     obs_buf = np.zeros((L, E, 77), np.float32)
@@ -77,7 +80,7 @@ def gen(args):
             print(f"{n} steps  {n / (time.time() - t0):.0f} steps/s  {len(results)} episodes", flush=True)
     venv.close()
     os.makedirs(os.path.dirname(args.data), exist_ok=True)
-    np.savez(args.data, obs=obs_buf, probs=prob_buf, rew=rew_buf, done=done_buf)
+    np.savez(args.data, obs=obs_buf, probs=prob_buf, rew=rew_buf, done=done_buf, teacher=np.array(args.teacher))
     print(f"saved {args.data}: {L * E} steps, {len(results)} episodes")
     for mode in (True, False):
         for opp in sorted({o for _, o, _ in results}):
@@ -160,6 +163,8 @@ def train(args):
     th.set_num_threads(args.threads)
     th.manual_seed(args.seed)
     d = np.load(args.data)
+    teacher = str(d["teacher"]) if "teacher" in d.files else HARD   # older data files: hard
+    print(f"teacher {teacher}")
     ret, mask = returns_and_mask(d["rew"], d["done"])
     starts = np.ones_like(d["done"])
     starts[1:] = d["done"][:-1]
@@ -194,7 +199,8 @@ def train(args):
             print(f"  saved {args.out}")
     with open(os.path.splitext(args.out)[0] + ".json", "w") as f:
         json.dump({**vars(args), "best_val_kl": best, "policy_kwargs": POLICY_KWARGS, "rl_kwargs": RL_KWARGS,
-                   "date": time.strftime("%Y-%m-%d %H:%M"), "computer": "PC2", "init": "baseline:hard"}, f, indent=2)
+                   "date": time.strftime("%Y-%m-%d %H:%M"), "computer": "PC2",
+                   "init": "baseline:hard" if teacher == HARD else teacher, "teacher": teacher}, f, indent=2)
 
 
 if __name__ == "__main__":
@@ -203,7 +209,11 @@ if __name__ == "__main__":
     g = sub.add_parser("gen")
     g.add_argument("--steps", type=int, default=1_500_000)
     g.add_argument("--n-envs", type=int, default=8)
-    g.add_argument("--p-det", type=float, default=0.5, help="share of episodes where hard plays deterministic")
+    g.add_argument("--p-det", type=float, default=0.5, help="share of episodes where the teacher plays deterministic")
+    g.add_argument("--teacher", default=HARD, help="PPO MlpPolicy zip to imitate (default: hard)")
+    g.add_argument("--opponents", type=json.loads, default=None, help="JSON {spec: weight} (default: GEN_OPPONENTS)")
+    g.add_argument("--maps", default="mixed", help="map set for StudentTanksEnv (default: mixed)")
+    g.add_argument("--scenario-prob", type=float, default=0.0, help="probability of a prepared start")
     t = sub.add_parser("train")
     t.add_argument("--epochs", type=int, default=30)
     t.add_argument("--lr", type=float, default=3e-4)

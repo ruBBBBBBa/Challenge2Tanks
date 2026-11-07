@@ -670,6 +670,7 @@
 
 - **D no cumple el criterio de CLAUDE.md** (≥ 50 % contra hard en determinista): su mejor resultado es 12-22-6 (30 %), y pierde casi todo contra los modelos nuevos. D-g1c (la continuación de D-g1b) quedó lanzado en GPU antes de esta evaluación.
 - **E-g1_2000k no generaliza:** gana 40-0-0 a hard, pero pierde 0-0-40 contra A-g6, 2-10-28 contra A-g5, 0-8-32 contra B-g4 y 0-2-38 contra C-g4. El 152-8-0 de ayer era contra rivales de su propia liga (A-g4, B-g1, C-g1).
+<<<<<<< Updated upstream
 - **Arriba:** A-g6, C-g4 y B-g4 casi solo empatan entre ellos. A-g6 contra B y C: 4-34-2 y 6-32-2. B contra C: 8-30-2. El problema de los empates sigue entre los mejores, y en el torneo se desempata por daño.
 ## 2026-11-07 00:13 · PC1 · A-g7
 
@@ -688,3 +689,6 @@
 | baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
 
 - Notas: 
+=======
+- **Arriba:** A-g6, C-g4 y B-g4 casi solo empatan entre ellos. A-g6 contra B y C: 4-34-2 y 6-32-2. B contra C: 8-30-2. El problema de los empates sigue entre los mejores. Son empates de verdad: al acabar el tiempo se decide por vida y después por daño, pero el daño de cada uno es la vida que ha perdido el otro, así que con la misma vida también hay el mismo daño.
+>>>>>>> Stashed changes
