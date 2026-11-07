@@ -890,3 +890,18 @@
 - **Aviso:** `tools/evaluate.py --games 4`: **60,7 %** (A-g7_8000k: 96,4 %). Contra hard 0-4-0 y contra easy 0-4-0, todo empates a 0 daño; contra medium 2-2-0.
   En la liga 9 lo mismo: A-g9 427-431-6 (contra hard 18-30-0) frente a A-g7_8000k 431-351-82 (contra hard 36-12-0). A-g9 casi no pierde pero empata mucho más, el mismo perfil que el A-g7 final.
 - Para volver atrás: `cp models/candidatos/A-g7_8000k.zip submissions/equipo_provisional/model.zip`.
+
+
+### 2026-11-07 16:40 · PC2 · Vigilante de entrenamientos y arreglo de pfsp.py
+- **`student/pfsp.py` (de PC1, cambio mínimo):** las claves de TensorBoard pasan de `pfsp/wr/<spec>` a `pfsp/wr/<nombre corto>` (`short_spec`: `model:dir/A-g7_8000k.zip` → `A-g7_8000k`, `my:stoch:dir/X.zip` → `stoch:X`; los bots y baselines no cambian). Es el error que tiró D2-g1: el logger de texto de SB3 corta las claves a 36 caracteres y falla cuando dos claves cortadas coinciden. Ya no depende de lo larga que sea la ruta del pool. Test añadido en el `__main__` de `pfsp.py`. **Las curvas `pfsp/wr/...` de las ejecuciones nuevas tienen otro nombre que las anteriores.**
+- **`student/train_agent.py` (de PC1, cambio mínimo):**
+  - `--checkpoint-every` (por defecto 500000, como antes);
+  - `--resume`: `--init` es un checkpoint de la misma ejecución y conserva su contador de pasos (`reset_num_timesteps=False`, `--timesteps` es el total). Los snapshots siguen con su nombre (`D2-g1_4000k`, …) en vez de volver a empezar desde 0.
+  - Comprobado que los checkpoints guardan `num_timesteps`. Todavía no he probado una reanudación real: no hay RAM libre con D2-g1 en marcha.
+- **`student/watchdog.py` (nuevo):** cada 2 min mira el PID de `logs/<name>.pid`.
+  - Si el proceso termina bien, avisa y se cierra. Si existe `logs/<name>.stop`, se cierra sin relanzar.
+  - Si se cae, avisa con una ventana de Windows (`msg`) y en `logs/watchdog_<name>.log`, con el final del `.err`. Lo relanza **una vez** con `RESUME_FROM=<último checkpoint>`; si vuelve a caer, solo avisa.
+  - Probado con un proceso falso que se cae: elige el checkpoint de más pasos, relanza una vez y para.
+- `logs/run_D2-g1.ps1`: acepta `$env:RESUME_FROM` (añade `--resume`), guarda el log anterior como `D2-g1_prevN.*` y usa `--checkpoint-every 1000000` a partir del próximo lanzamiento (el D2-g1 actual, PID 31440, sigue con 500k).
+- `student/watch_snapshots.py`: `--pid-file` (relee el PID en cada vuelta, porque el vigilante puede cambiarlo) y `--grace 900` (espera 15 min antes de cerrarse si el entrenamiento no está).
+- En marcha: vigilante PID 33404 y evaluador PID 34408 (`--pid-file logs/D2-g1.pid --outbox`). **Para parar D2-g1 a propósito: crear antes `logs/D2-g1.stop`.**

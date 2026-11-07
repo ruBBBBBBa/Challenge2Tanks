@@ -21,6 +21,15 @@ SCORES = {
 }
 
 
+def short_spec(spec):
+    """Log key without the directory: SB3's text logger truncates keys to 36 chars and crashes when two
+    truncated keys collide (model:models/pool_D2_g1/A-g7_... vs A-g6_...). model:dir/X.zip -> X."""
+    head, _, path = spec.rpartition(":") if spec.endswith(".zip") else ("", "", spec)
+    head = "" if head == "model" else head.replace("my:", "") + ":" if head else ""
+    base = path.replace("\\", "/").rsplit("/", 1)[-1]
+    return head + (base[:-4] if base.endswith(".zip") else base)
+
+
 def mix_weights(fixed, league, league_share, scores=None, min_weight=0.02):
     """{spec: weight} summing to 1: fixed specs scaled to 1-league_share, league specs by score."""
     if not league:
@@ -76,7 +85,7 @@ class PFSPCallback(BaseCallback):
 
     def _update(self):
         for spec in self.results:
-            self.logger.record(f"pfsp/wr/{spec}", self.win_rate(spec))
+            self.logger.record(f"pfsp/wr/{short_spec(spec)}", self.win_rate(spec))
         if self.league and self.mode != "off":
             w = self.weights()
             self.training_env.env_method("set_pool_weights", w)
@@ -90,6 +99,10 @@ if __name__ == "__main__":
     assert abs(sum(w.values()) - 1) < 1e-9 and abs(w["baseline:hard"] - 0.375) < 1e-9
     assert w["b"] > 0 and w["a"] > w["b"], w
     assert mix_weights({"basic": 2}, [], 0.5) == {"basic": 1.0}
+    assert short_spec("model:models/pool_D2_g1/A-g7_8000k.zip") == "A-g7_8000k"
+    assert short_spec("my:stoch:models/shared/A-g6_4000k.zip") == "stoch:A-g6_4000k"
+    assert short_spec("my:stoch:baseline:hard") == "my:stoch:baseline:hard"
+    assert short_spec("baseline:hard") == "baseline:hard"
     cb = PFSPCallback({"basic": 1}, ["a", "b"], mode="hard")
     cb.results["a"].extend([1] * 20)
     cb.results["b"].extend([0] * 20)

@@ -65,6 +65,9 @@ class SnapshotCallback(BaseCallback):
         super().__init__()
         self.name, self.every, self.next = name, every, every
 
+    def _on_training_start(self):  # --resume keeps num_timesteps: next snapshot after it
+        self.next = (self.model.num_timesteps // self.every + 1) * self.every
+
     def _on_step(self):
         if self.num_timesteps >= self.next:
             path = os.path.join(ROOT, "models", "league", f"{self.name}_{self.next // 1000}k.zip")
@@ -116,6 +119,9 @@ def parse_args(argv=None):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--blend-steps", type=int, default=300_000)
     ap.add_argument("--snapshot-every", type=int, default=250_000)
+    ap.add_argument("--checkpoint-every", type=int, default=500_000)
+    ap.add_argument("--resume", action="store_true",
+                    help="--init is a checkpoint of this run: keep its step count (snapshot names, --timesteps total)")
     ap.add_argument("--eval-games", type=int, default=20)
     ap.add_argument("--device", choices=["cpu", "cuda", "auto"], default="cpu", help="cpu by default (SB3 auto would pick the GPU)")
     ap.add_argument("--learner-threads", type=int, default=1, help="torch threads for the update (main process)")
@@ -178,7 +184,7 @@ def main(argv=None):
           f"league={len(league)}")
 
     callbacks = [SnapshotCallback(args.name, args.snapshot_every),
-                 CheckpointCallback(save_freq=max(500_000 // args.n_envs, 1),
+                 CheckpointCallback(save_freq=max(args.checkpoint_every // args.n_envs, 1),
                                     save_path=f"models/checkpoints_{args.name}/", name_prefix=args.name)]
     if has_blend:
         callbacks.append(BlendCallback(args.blend_steps))
@@ -189,7 +195,11 @@ def main(argv=None):
     if args.learner_threads > 1:
         callbacks.append(LearnerThreadsCallback(args.learner_threads))
 
-    model.learn(total_timesteps=args.timesteps, callback=callbacks, tb_log_name=args.name)
+    done = int(model.num_timesteps) if args.resume else 0
+    if args.resume:
+        print(f"[train] resuming at {done} steps")
+    model.learn(total_timesteps=args.timesteps - done, callback=callbacks, tb_log_name=args.name,
+                reset_num_timesteps=not args.resume)
     model.save(f"models/{args.name}")
     env.close()
 

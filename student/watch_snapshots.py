@@ -50,6 +50,8 @@ def main():
     ap.add_argument("--name", required=True)
     ap.add_argument("--rivals", nargs="+", required=True)
     ap.add_argument("--pid", type=int, default=0, help="training process; stop when it is gone")
+    ap.add_argument("--pid-file", default=None, help="read the training pid from this file on every poll")
+    ap.add_argument("--grace", type=int, default=900, help="keep waiting this long after the pid is gone")
     ap.add_argument("--procs", type=int, default=3)
     ap.add_argument("--every", type=int, default=120)
     ap.add_argument("--settle", type=int, default=60)
@@ -68,13 +70,24 @@ def main():
                     "Cada celda es «oficiales · aleatorios» en W-D-L. R1 solo como rival de evaluación.\n\n"
                     "| snapshot | " + " | ".join(short(r) for r in args.rivals) + " | total oficiales | total aleatorios |\n"
                     + "|---" * (len(args.rivals) + 3) + "|\n")
-    seen = {}
+    seen, dead_since = {}, None
     while True:
         snaps = sorted(glob.glob(f"models/league/{args.name}_*k.zip"),
                        key=lambda p: int(re.search(r"_(\d+)k\.zip$", p).group(1)))
         todo = [p for p in args.extra if os.path.basename(p)[:-4] not in done] + \
                [p for p in snaps if os.path.basename(p)[:-4] not in done]
+        if args.pid_file:                                   # re-read: watchdog.py may relaunch with a new pid
+            try:
+                args.pid = int(open(args.pid_file).read().strip())
+            except (OSError, ValueError):
+                pass
         running = alive(args.pid)
+        if running:
+            dead_since = None
+        else:
+            dead_since = dead_since or time.time()
+            print(f"[watch] {time.strftime('%H:%M')} training pid {args.pid} is not running", flush=True)
+            running = time.time() - dead_since < args.grace  # give watchdog.py time to relaunch it
         for p in todo:
             name = os.path.basename(p)[:-4]
             size = os.path.getsize(p)
