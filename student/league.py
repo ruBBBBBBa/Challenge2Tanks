@@ -324,6 +324,57 @@ def fmt_gen(s):
     return "-" if s["elo_gen"] is None else f"{pct(s['wr_gen'])} ({s['elo_gen']:.0f})"
 
 
+JUDGE_DIRS = ("models/reserved", "models/eval_pc4")
+
+
+def find_judges(arg):
+    """{name: path} of the judges (R1, R2...): "auto" = R*.zip in JUDGE_DIRS, "none", or explicit paths.
+    Judges are read in place: never participants, never copied to models/ligaK/ (the training pool)."""
+    if arg == ["none"]:
+        return {}
+    paths = [p for d in JUDGE_DIRS for p in sorted(glob.glob(os.path.join(ROOT, d, "R*.zip")))] \
+        if arg == ["auto"] else arg
+    out = {}
+    for p in paths:
+        out.setdefault(os.path.splitext(os.path.basename(p))[0], os.path.relpath(p, ROOT).replace(os.sep, "/"))
+    return out
+
+
+def judge_eval(models, judges, official_keys, random_keys, procs):
+    """models {name: spec} against judges {name: path} on official and random maps, both sides.
+    -> list of dicts (model, judge, W-D-L and P(series) on each map set), from build_table/series_win_prob."""
+    names = list(models) + list(judges)
+    specs = list(models.values()) + [f"model:{p}" for p in judges.values()]
+    maps = official_keys + random_keys
+    tasks = [(i, j, m, s, 0, specs[i], specs[j]) for i in range(len(models))
+             for j in range(len(models), len(names)) for m in maps for s in (0, 1)]
+    with Pool(procs, initializer=_worker_init, initargs=(False,)) as pool:
+        rows = list(pool.imap_unordered(play, tasks, chunksize=2))
+    table = build_table(rows)
+    out = []
+    for i in range(len(models)):
+        for j in range(len(models), len(names)):
+            out.append(dict(model=names[i], judge=names[j],
+                            wdl_official=head_to_head(table, i, j, official_keys),
+                            p_official=series_win_prob(table, i, j, official_keys) if official_keys else None,
+                            wdl_random=head_to_head(table, i, j, random_keys),
+                            p_random=series_win_prob(table, i, j, random_keys) if random_keys else None))
+    return out
+
+
+def judge_lines(res, judges):
+    wdl = lambda w: f"{w[0]}-{w[1]}-{w[2]}"   # noqa: E731
+    L = ["", f"## Juez: top-3 de la familia A contra {', '.join(judges)} (fuera de cualquier pool)", "",
+         "Los jueces se leen de " + ", ".join(f"`{p}`" for p in judges.values()) + ": no participan en la liga ni "
+         "se copian a models/ligaK/. W-D-L de la fila (modelo A) y P(ganar la serie) con la regla del cuadro.", "",
+         "| modelo A | juez | W-D-L oficiales | P(serie) oficiales | W-D-L aleatorios | P(serie) aleatorios |",
+         "|---|---|---|---|---|---|"]
+    for r in res:
+        L.append(f"| {r['model']} | {r['judge']} | {wdl(r['wdl_official'])} | {pct(r['p_official'])} | "
+                 f"{wdl(r['wdl_random'])} | {pct(r['p_random'])} |")
+    return L
+
+
 def write_report(path, stats, suspicious, matrix, names, meta):
     L = [f"# Liga {meta['date']}", "",
          f"{len(names)} participantes · {meta['n_games']} partidas · mapas: {meta['maps_summary']} · "
@@ -406,6 +457,8 @@ def parse_args(argv=None):
     ap.add_argument("--replays-dir", default=None, help="save replays of the losses of the top-3 models")
     ap.add_argument("--out", default="results")
     ap.add_argument("--tag", default="", help="suffix for the output file names")
+    ap.add_argument("--judges", nargs="*", default=["auto"],
+                    help="judges for the top-3 A: auto (R*.zip in models/reserved/, models/eval_pc4/), none, or paths")
     return ap.parse_args(argv)
 
 
@@ -475,8 +528,18 @@ def main(argv=None):
                 maps_summary=f"{len(official_keys)} oficiales + {len(aug_keys)} aug + {len(random_keys)} aleatorios + {len(gen_keys)} gen",
                 args=vars(args))
     write_report(base + ".md", stats, suspicious, matrix, names, meta)
+    judges = find_judges(args.judges)
+    top_a = {s["name"]: specs[names.index(s["name"])] for s in stats
+             if s["kind"] == "model" and s["name"].startswith("A-")}
+    top_a = dict(list(top_a.items())[:3])
+    judged = []
+    if judges and top_a:
+        print(f"[league] judges {list(judges)} vs top-3 A {list(top_a)}", flush=True)
+        judged = judge_eval(top_a, judges, official_keys, random_keys, args.procs)
+        with open(base + ".md", "a", encoding="utf-8") as f:
+            f.write("\n".join(judge_lines(judged, judges)) + "\n")
     with open(base + ".json", "w", encoding="utf-8") as f:
-        json.dump(dict(meta=meta, names=names, ranking=stats, matrix=matrix, games=rows), f)
+        json.dump(dict(meta=meta, names=names, ranking=stats, matrix=matrix, games=rows, judges=judged), f)
     print(f"[league] wrote {base}.md / .json")
     for k, s in enumerate(stats[:10], 1):
         print(f"  {k:2d}. {s['name']:28s} Elo {s['elo']:6.0f}  wr {pct(s['win_rate']):>4s}  "
