@@ -834,3 +834,44 @@
   - Guardado con numpy 1.26.4, SB3 2.1.0, torch 2.2.2 y Python 3.10.
   - `tools/evaluate.py --games 4`: 96,4 % (solo un empate contra defensive).
   - Pendiente (sección 10, paso 2): probar la carga en un entorno virtual limpio, idealmente con Python 3.8, como la máquina del profesor.
+
+## 2026-11-07 15:34 · PC1 · A-g9
+
+- Comando: `python student/train_agent.py --name A-g9 --init models/liga8/A-g7_8000k.zip --league-glob models/liga8/*.zip --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-07T14:14 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 2.50 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 0 | 2 | 0 | 0% | 0.50 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:medium | 0 | 2 | 0 | 0% | 0.00 |
+
+- Notas: 
+
+## 2026-11-07 15:42 · PC1 · pipeline: A-g9 → liga9 → A-g10
+
+- Liga: `results/league_2026-11-07_1534_liga9.json` (11 modelos + baselines + bots).
+- Elegido: `models/liga9/A-g9.zip` (mayor Elo principal de la rama A (1795)).
+- Lanzado A-g10 (PID 18308): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g10 --init models/liga9/A-g9.zip --league-glob 'models/liga9/*.zip' --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g10.out 2>&1 &`
+- Resumen: `results/pipeline_liga9.md`.
+
+## 2026-11-07 15:45 · PC1 · Carga en entornos limpios, ramas D2 y aviso sobre la carpeta de la entrega
+
+- Entornos limpios creados con `uv` fuera del repo (sin tocar `.venv`):
+
+| entorno | Python | numpy | torch | SB3 / sb3-contrib | gymnasium |
+|---|---|---|---|---|---|
+| viejo | 3.8.20 | 1.24.4 | 2.4.1+cpu | 2.1.0 / 2.1.0 | 0.29.1 |
+| nuevo | 3.12.14 | 2.5.4 | 2.15.0+cpu | 2.9.2 / 2.9.2 | 1.4.0 |
+
+  `submissions/equipo_provisional/model.zip` (A-g7_8000k) y `models/D2b-distill.zip` (PPO con MLP, no recurrente): en los dos entornos cargan con `load_sb3_model`, obs (77,) y Discrete(6), ganan a hard en fortress y son deterministas.
+  `tools/evaluate.py --games 4` da resultados idénticos en los dos entornos (y en `.venv`): la entrega 96,4 % y D2b-distill 85,7 % (50 % contra defensive y medium). No hace falta volver a guardar nada.
+- `student/league_branches.txt`: añadidas las ramas `D2` y `D2b`. El filtro reconoce cada rama por el prefijo `<rama>-`, así que la línea `D` no cogía `D2-g1_*` ni `D2b-distill`. Probado con archivos de mentira: D2-g1_4000k, D2-g1_6000k y D2b-distill entran; R1, nunca.
+  Se lee antes de cada liga, así que vale para el pipeline en marcha desde la liga 10. **Ojo:** el pipeline solo mira `models/league/` y `models/shared/`. Ahora no hay ningún D2 ahí (D2b-distill está en `models/`): entrarán cuando PC2 los publique (sync) o se copien a `models/league/`.
+- Juez automático comprobado en producción: las tablas de R1 salen en las ligas 8 y 9, y R1 no está en `models/liga9/`.
+- **PENDIENTE PARA EL LUNES 9:** la carpeta de la entrega es provisional (`submissions/equipo_provisional/`). Al elegir el modelo definitivo hay que renombrarla al nombre real del equipo (`submissions/<equipo>/model.zip`), copiar dentro el modelo elegido y repetir las comprobaciones de la sección 10 (cargador oficial, `tools/evaluate.py` y los entornos limpios de 3.8 y 3.12).

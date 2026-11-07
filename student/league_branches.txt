@@ -1,7 +1,10 @@
 # Otras ramas que pipeline.py mete en cada liga (2 versiones más recientes de models/league/ + models/shared/).
 # Se lee antes de cada liga: añadir una rama aquí no obliga a relanzar el pipeline. R1 nunca entra.
+# Cada línea reconoce los nombres que empiezan por "<rama>-": D solo coge D-*, por eso D2 y D2b van aparte.
 B
 C
 D
+D2
+D2b
 X1
 E
