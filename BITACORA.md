@@ -727,3 +727,24 @@
 
   Series a moneda en todo el cuadro: 25,5 %. El A-g7 final no pierde ninguna partida contra el resto del cuadro y gana 2 de las 8 combinaciones oficiales contra casi todos: cuando los empates se repiten, eso le basta para ganar casi todas las series. A-g7_8000k empata las 8 combinaciones oficiales contra varios A y depende de la moneda en casi la mitad de sus series.
 - El pipeline en marcha la usará a partir de la liga 8 (lanza `league.py` como proceso nuevo).
+
+## 2026-11-07 14:00 · PC1 · league.py: tabla «series contra rivales de fuera»
+
+- Nuevas funciones reutilizables en `student/league.py`:
+  - `build_table(rows)`;
+  - `series_win_prob(table, a, b, maps)`: P(ganar la serie) con la regla del README, por simulación, 2000 series;
+  - `head_to_head(table, a, b, maps)`: W-D-L.
+- En el informe de la liga (desde la liga 8), sección nueva «Series contra rivales de fuera (familia A)»:
+  - resumen por modelo A: media, peor rival, rivales por debajo del 50 % y derrotas;
+  - detalle por rival que no es A (B, C, D, E, X1, hard, medium y bots): P(serie) en oficiales (rondas), en aleatorios (final), la media y derrotas/partidas.
+  Se guarda también en el JSON (`ranking[*].vs_outside`).
+- Liga 7 recalculada:
+
+| modelo A | media | peor rival (oficiales / aleatorios) | derrotas (en 624 partidas) | P(campeón) |
+|---|---|---|---|---|
+| A-g7_8000k | 100 % | ninguno por debajo del 100 % | 4 | 12,7 % |
+| A-g6_4000k | 96 % | C-g4 (100 / 49 %), B-g4 (48 / 100 %) | 6 | 0,7 % |
+| A-g7_4000k | 99 % | E-g1 (100 / 72 %) | 6 | 5,4 % |
+| A-g7 (final) | 96 % | B-g4 (100 / 49 %), hard (48 / 100 %: 0-8-0 en oficiales) | 8 | 78,5 % |
+
+  Contra rivales de fuera, A-g7_8000k gana todas las series. El A-g7 final se queda a cara o cruz contra hard en oficiales (8 empates de 8) y contra B-g4 en aleatorios. Su 78,5 % de P(campeón) viene de no perder nunca contra los otros A del cuadro.
