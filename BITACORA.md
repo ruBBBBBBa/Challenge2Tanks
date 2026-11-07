@@ -657,9 +657,9 @@
 
 - `student/eval_snapshots.py`, determinista, 40 partidas por pareja (16 official_aug + 4 aleatorios × 2 lados). Tabla completa en `results/eval_2026-11-07_D_y_nuevos.md` y `.json`. Total W-D-L sin contar el cruce consigo mismo:
 
-| modelo | hard | total sin hard (5 rivales) |
+| modelo | hard | contra los demás modelos (sin hard ni el cruce consigo mismo: 4 rivales; D, 5) |
 |---|---|---|
-| A-g6_4000k | 36-4-0 | 76-120-4 |
+| A-g6_4000k | 36-4-0 | 76-80-4 |
 | C-g4_6000k | 38-2-0 | 72-74-14 |
 | B-g4_3000k | 40-0-0 | 62-90-8 |
 | A-g5_24000k | 40-0-0 | 30-52-78 |
