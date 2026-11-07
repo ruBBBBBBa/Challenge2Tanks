@@ -1170,3 +1170,19 @@
   - En git: `results/d3play_replays.jsonl.gz` (**4,4 MB**: cada línea es una repetición con mapa, configuración y acciones de los dos, más las etiquetas deterministas del ganador como texto) y `results/d3play_replays.json` (recuentos). El `.npz` no se sube.
   - **Para PC2:** `python student/winners_dataset.py --from-play results/d3play_replays.jsonl.gz --verify 20 --out <ruta>.npz`. Reconstruye las obs con el motor (determinista) y genera el formato de `distill.py train` (obs, probs = one-hot de la etiqueta, rew = default_reward del ganador, done, más `episode_start`). `--verify` comprueba que el modelo ganador en determinista, con su LSTM, reproduce las etiquetas.
   - Verificado con una muestra de 40 partidas (5 por ganador, incluido D2b-distill): las 40 coinciden.
+
+## 2026-11-07 19:33 · PC1 · pipeline: A-g11 → liga12 → A-g12
+
+- Liga: `results/league_2026-11-07_1924_liga12.json` (10 modelos + baselines + bots).
+- Elegido: `models/liga12/A-g11_8000k.zip` (mayor Elo principal de la rama A (1818)).
+- Lanzado A-g12 (PID 31727): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g12 --init models/liga12/A-g11_8000k.zip --league-glob 'models/liga12/*.zip' --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g12.out 2>&1 &`
+- Resumen: `results/pipeline_liga12.md`.
+
+## 2026-11-07 19:40 · PC1 · Pipeline relanzado para la noche
+
+- `STOP_PIPELINE` borrado. Pipeline relanzado esperando a A-g11 (ya terminado): **PID 31353**, `logs/pipeline5.out`:
+  `nohup .venv/bin/python student/pipeline.py --wait-pid logs/A-g11.pid --generations 8 --timesteps 12000000 --pfsp-modes hard,variance,hard,variance,hard,variance,hard,variance > logs/pipeline5.out 2>&1 &`
+- Liga 12 (19:24–19:33): elegido **A-g11_8000k** (Elo 1818) → **A-g12** lanzado (PID 31727), con PFSP hard.
+  8 generaciones de ~92 min (liga incluida): A-g12 … A-g19, la última hasta ~7:50; con 9 se habría pasado de las 9:00.
+- Ya entran D2-g1_2000k y D2b-distill (ramas D2 y D2b). R2-g5_3000k (PC4, en `models/reserved/`) entra solo como juez, junto a R1.
+- Seguimiento: `results/comparaciones_noche.md` (comparación con el candidato A-g9 en cada liga) y `results/resumen_noche.md`.
