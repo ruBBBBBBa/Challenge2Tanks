@@ -796,3 +796,41 @@
   - Parte fija: estoc. A-g6 0.20, hard 0.15, hitandhide 0.15, bushcamper 0.15, estoc. hard 0.10, y medium, basic, aggressive, defensive y rusher a 0.05.
 - **Evaluación automática de snapshots:** `student/watch_snapshots.py --name D2-g1 --pid 23536 --procs 3` (PID 21104, CPU), con eval_vs.py y los mismos 8 rivales. Una fila por snapshot en `results/eval_D2-g1.md`; la primera fila es D2b-distill.
 - Antes se paró D-g1c (352k pasos, sin checkpoint) para dejar RAM a la destilación. Era la continuación de D-g1b con la mezcla antigua; sus curvas están en `results/tb/D-g1c`.
+## 2026-11-07 14:07 · PC1 · A-g8
+
+- Comando: `python student/train_agent.py --name A-g8 --init models/liga7/A-g7_8000k.zip --league-glob models/liga7/*.zip --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-07T12:48 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 1.50 |
+| basic | 2 | 0 | 0 | 100% | 2.50 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 1 | 1 | 0 | 50% | 1.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 2.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-07 14:14 · PC1 · pipeline: A-g8 → liga8 → A-g9
+
+- Liga: `results/league_2026-11-07_1407_liga8.json` (11 modelos + baselines + bots).
+- Elegido: `models/liga8/A-g7_8000k.zip` (mayor Elo principal de la rama A (1859)).
+- Lanzado A-g9 (PID 14286): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g9 --init models/liga8/A-g7_8000k.zip --league-glob 'models/liga8/*.zip' --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g9.out 2>&1 &`
+- Resumen: `results/pipeline_liga8.md`.
+
+## 2026-11-07 14:50 · PC1 · Juez automático en league.py + entrega provisional
+
+- Decisión: ningún modelo de PC4 entra en el pool ni se publica. R1 es el juez y se queda fuera de git (`models/eval_pc4/`, en `.gitignore`) y de cualquier pool.
+- `league.py --judges auto` (por defecto; commit `035302f`): al terminar cada liga, los 3 mejores A (por Elo) juegan contra los jueces `R*.zip` de `models/reserved/` y `models/eval_pc4/` (R1 ahora; R2 cuando aparezca), en oficiales y aleatorios y por los dos lados. Usa `build_table`, `head_to_head` y `series_win_prob`.
+  La tabla «Juez» se añade al final del informe `.md` y a `judges` en el `.json`. Los jueces se leen en su sitio: no son participantes, no entran en el ranking y no se copian a `models/ligaK/`.
+  Como el pipeline lanza `league.py` como proceso nuevo, la liga 8 ya lo hará sin relanzar nada. `--judges none` lo desactiva.
+  Prueba pequeña: R1 encontrado y evaluado; no aparece entre los participantes ni en la carpeta del pool.
+- **Entrega provisional:** `submissions/equipo_provisional/model.zip` = A-g7_8000k (sha256 `ed204649…`). Nombre de carpeta provisional hasta saber el nombre del equipo.
+  - Cargador oficial (`load_sb3_model`): PPO, obs Box(77,), Discrete(6). Spec `submission:equipo_provisional` con deterministic=True.
+  - Partida determinista contra hard en open_field: gana 3-0 en 51 pasos; repetida, acciones idénticas.
+  - Guardado con numpy 1.26.4, SB3 2.1.0, torch 2.2.2 y Python 3.10.
+  - `tools/evaluate.py --games 4`: 96,4 % (solo un empate contra defensive).
+  - Pendiente (sección 10, paso 2): probar la carga en un entorno virtual limpio, idealmente con Python 3.8, como la máquina del profesor.
