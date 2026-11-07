@@ -652,3 +652,91 @@
   - PID vivo de otro proceso → no espera; proceso que sí es `train_agent.py --name A-g7` → espera a que acabe.
   - Con el PID real 944689, `is_training` = True.
 - El comando para reanudar mañana no cambia.
+
+## 2026-11-07 01:06 · PC4 · test-X1
+
+- Comando: `python student/train_agent.py --name test-X1 --init baseline:hard --reward default --opponents {"baseline:hard": 1.0} --maps official --timesteps 20000 --n-envs 3 --lr 1e-4 --snapshot-every 100000000 --eval-games 2`
+- Pasos: 24,570 · inicio 2026-11-07T01:05 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 0 | 0 | 2 | 0% | 2.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-07 01:07 · PC4 · test-R1
+
+- Comando: `python student/train_agent.py --name test-R1 --init baseline:hard --reward default --seed 7 --ent-coef 0.02 --opponents {"baseline:hard": 0.4, "baseline:medium": 0.2, "basic": 0.15, "aggressive": 0.15, "defensive": 0.1} --maps mixed --timesteps 20000 --n-envs 3 --lr 1e-4 --snapshot-every 100000000 --eval-games 2`
+- Pasos: 24,570 · inicio 2026-11-07T01:06 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 0 | 2 | 0 | 0% | 2.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## X1-antihard · PC4 · lanzado Sat Nov  7 01:12:08 2026
+
+- Ordenador: PC4 (portátil, 6 núcleos físicos, --n-envs 3)
+- ID: X1-antihard. Explotador anti-hard: juega solo contra hard. Sparring en la liga, no se entrega.
+- Comando: `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python student/train_agent.py --name X1-antihard --init baseline:hard --reward default --opponents '{"baseline:hard": 1.0}' --maps official --timesteps 15000000 --n-envs 3 --lr 1e-4 --snapshot-every 2000000 --eval-games 2`
+- Pasos: 15M. PID: 47576. Log: logs/X1-antihard.out
+- Resultados: ver la entrada "2026-11-07 06:20 · PC4 · X1-antihard" más abajo (tabla de evaluación determinista).
+
+## R1 · PC4 · lanzado Sat Nov  7 01:16:21 2026
+
+- Ordenador: PC4 (portátil, 6 núcleos físicos, --n-envs 3)
+- ID: R1. Rival reservado: nunca entra en ningún pool, solo para evaluar. Sin snapshots en models/league/ (--snapshot-every 100000000).
+- Comando: `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python student/train_agent.py --name R1 --init baseline:hard --reward default --seed 7 --ent-coef 0.02 --opponents '{"baseline:hard": 0.4, "baseline:medium": 0.2, "basic": 0.15, "aggressive": 0.15, "defensive": 0.1}' --maps mixed --timesteps 15000000 --n-envs 3 --lr 1e-4 --snapshot-every 100000000 --eval-games 2`
+- Pasos: 15M. PID: 48762. Log: logs/R1.out
+- Resultados: ver la entrada "2026-11-07 06:19 · PC4 · R1" más abajo (tabla de evaluación determinista).
+
+## 2026-11-07 06:19 · PC4 · R1
+
+- Comando: `python student/train_agent.py --name R1 --init baseline:hard --reward default --seed 7 --ent-coef 0.02 --opponents {"baseline:hard": 0.4, "baseline:medium": 0.2, "basic": 0.15, "aggressive": 0.15, "defensive": 0.1} --maps mixed --timesteps 15000000 --n-envs 3 --lr 1e-4 --snapshot-every 100000000 --eval-games 2`
+- Pasos: 15,004,080 · inicio 2026-11-07T01:16 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:easy | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
+
+## 2026-11-07 06:20 · PC4 · X1-antihard
+
+- Comando: `python student/train_agent.py --name X1-antihard --init baseline:hard --reward default --opponents {"baseline:hard": 1.0} --maps official --timesteps 15000000 --n-envs 3 --lr 1e-4 --snapshot-every 2000000 --eval-games 2`
+- Pasos: 15,004,080 · inicio 2026-11-07T01:12 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 3.00 |
+| basic | 2 | 0 | 0 | 100% | 3.00 |
+| aggressive | 2 | 0 | 0 | 100% | 3.00 |
+| defensive | 1 | 0 | 1 | 50% | 2.50 |
+| baseline:easy | 0 | 0 | 2 | 0% | 1.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 3.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 3.00 |
+
+- Notas: 
