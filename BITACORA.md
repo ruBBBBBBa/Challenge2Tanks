@@ -882,3 +882,11 @@
 - **Watcher relanzado:** `student/watch_snapshots.py --name D2-g1 --pid 31440 --procs 3 --outbox` (PID 15936), mismos 8 rivales. Opción nueva `--outbox`: copia cada snapshot a `models/outbox/` en cuanto acaba su evaluación.
 - **sync_models.py** solo publica `<prefijo>-*.zip`, así que `D` no deja pasar `D2-g1_*` ni `D2b-distill`. Relanzado con `--loop --publish D D2 D2b E` (PID 33816).
 - `models/D2b-distill.zip` copiado a `models/outbox/` y publicado: `logs/sync.log` 16:27:07 `publish: pushed models/league/D2b-distill.zip`; comprobado en `origin/main`.
+## 2026-11-07 16:00 · PC1 · Entrega provisional → A-g9
+
+- `submissions/equipo_provisional/model.zip` = `models/A-g9.zip` (idéntico a `models/liga9/A-g9.zip`; sha256 `6561b59f…`). A-g9 parte de A-g7_8000k, 12M pasos, PFSP variance.
+- El candidato anterior, A-g7_8000k, queda en `models/candidatos/A-g7_8000k.zip` (sin git), por si volvemos a él.
+- Sección 10: cargador oficial OK (PPO, Box(77,), Discrete(6)); `submission:` determinista; contra hard en open_field y en river, partida repetida con acciones idénticas.
+- **Aviso:** `tools/evaluate.py --games 4`: **60,7 %** (A-g7_8000k: 96,4 %). Contra hard 0-4-0 y contra easy 0-4-0, todo empates a 0 daño; contra medium 2-2-0.
+  En la liga 9 lo mismo: A-g9 427-431-6 (contra hard 18-30-0) frente a A-g7_8000k 431-351-82 (contra hard 36-12-0). A-g9 casi no pierde pero empata mucho más, el mismo perfil que el A-g7 final.
+- Para volver atrás: `cp models/candidatos/A-g7_8000k.zip submissions/equipo_provisional/model.zip`.
