@@ -913,3 +913,13 @@
   - `load_sb3_model` → `PPO` con política `RecurrentActorCriticPolicy`; estado tras un `predict`: dos tensores (1, 1, 256);
   - una partida contra hard en arena_01_open_field con `ModelAgent`, dos veces, y otra cargándolo explícitamente con `RecurrentPPO.load`: las tres idénticas (gana, 411 pasos, daño 3-0).
 - **Para la prueba en Python 3.8:** el entorno necesita `sb3-contrib==2.1.0` (misma versión menor que SB3 2.1.0). La clase de la política (`RecurrentActorCriticPolicy`) está en sb3-contrib, así que sin él no se puede reconstruir la LSTM (no lo he probado sin sb3-contrib). Criterio para darla por buena: que la política sea `RecurrentActorCriticPolicy` y el estado no sea `None`, aunque la clase sea `PPO` (eso es lo normal con el cargador oficial). Basta con ejecutar `python student/check_recurrent_load.py` en ese entorno. En PC2 no hay Python 3.8; falta que lo repita PC1.
+
+## 2026-11-07 16:55 · PC1 · Python 3.8: check_recurrent_load.py (D2b-distill) + entrega provisional (A-g9)
+
+- Entorno limpio de Python 3.8 (uv, fuera del repo): numpy 1.24.4, torch 2.4.1+cpu, SB3 2.1.0, sb3-contrib 2.1.0, gymnasium 0.29.1.
+- Corrección aceptada: en mi entrada de las 15:45 dije que D2b-distill era PPO con MLP porque miré la clase del objeto y no la política. Es RecurrentPPO (LSTM), como explicó PC2.
+- `student/check_recurrent_load.py models/D2b-distill.zip` → **prueba buena**:
+  - `load_sb3_model` → `PPO`, con política `RecurrentActorCriticPolicy`;
+  - estado tras el primer `predict`: tupla de dos tensores (1, 1, 256);
+  - contra hard en arena_01_open_field: con el cargador oficial, repetida y con `RecurrentPPO.load` explícito, las tres idénticas (gana, 411 pasos, 3-0).
+- Entrega provisional (A-g9) en Python 3.8: carga con `load_sb3_model` (PPO, `ActorCriticPolicy`, obs (77,), Discrete(6)) y es determinista. `tools/evaluate.py --games 4`: 60,7 %, igual que en `.venv` (hard 0-4-0, easy 0-4-0, medium 2-2-0, defensive 3-1-0, resto 4-0-0).
