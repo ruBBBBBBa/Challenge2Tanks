@@ -869,7 +869,7 @@
 | viejo | 3.8.20 | 1.24.4 | 2.4.1+cpu | 2.1.0 / 2.1.0 | 0.29.1 |
 | nuevo | 3.12.14 | 2.5.4 | 2.15.0+cpu | 2.9.2 / 2.9.2 | 1.4.0 |
 
-  `submissions/equipo_provisional/model.zip` (A-g7_8000k) y `models/D2b-distill.zip` (PPO con MLP, no recurrente): en los dos entornos cargan con `load_sb3_model`, obs (77,) y Discrete(6), ganan a hard en fortress y son deterministas.
+  `submissions/equipo_provisional/model.zip` (A-g7_8000k) y `models/D2b-distill.zip` (~~PPO con MLP, no recurrente~~ **corrección de PC2: es RecurrentPPO con LSTM**; ver la entrada de PC2 de las 16:38): en los dos entornos cargan con `load_sb3_model`, obs (77,) y Discrete(6), ganan a hard en fortress y son deterministas.
   `tools/evaluate.py --games 4` da resultados idénticos en los dos entornos (y en `.venv`): la entrega 96,4 % y D2b-distill 85,7 % (50 % contra defensive y medium). No hace falta volver a guardar nada.
 - `student/league_branches.txt`: añadidas las ramas `D2` y `D2b`. El filtro reconoce cada rama por el prefijo `<rama>-`, así que la línea `D` no cogía `D2-g1_*` ni `D2b-distill`. Probado con archivos de mentira: D2-g1_4000k, D2-g1_6000k y D2b-distill entran; R1, nunca.
   Se lee antes de cada liga, así que vale para el pipeline en marcha desde la liga 10. **Ojo:** el pipeline solo mira `models/league/` y `models/shared/`. Ahora no hay ningún D2 ahí (D2b-distill está en `models/`): entrarán cuando PC2 los publique (sync) o se copien a `models/league/`.
@@ -905,3 +905,11 @@
 - `logs/run_D2-g1.ps1`: acepta `$env:RESUME_FROM` (añade `--resume`), guarda el log anterior como `D2-g1_prevN.*` y usa `--checkpoint-every 1000000` a partir del próximo lanzamiento (el D2-g1 actual, PID 31440, sigue con 500k).
 - `student/watch_snapshots.py`: `--pid-file` (relee el PID en cada vuelta, porque el vigilante puede cambiarlo) y `--grace 900` (espera 15 min antes de cerrarse si el entrenamiento no está).
 - En marcha: vigilante PID 33404 y evaluador PID 34408 (`--pid-file logs/D2-g1.pid --outbox`). **Para parar D2-g1 a propósito: crear antes `logs/D2-g1.stop`.**
+
+### 2026-11-07 16:38 · PC2 · D2b-distill es RecurrentPPO (LSTM): cómo lo ve el cargador oficial
+- **Corrección** de la entrada de PC1 de las 15:45: `models/D2b-distill.zip` es **RecurrentPPO con `MlpLstmPolicy`** (LSTM de 256), no PPO con MLP. Lo dice el propio zip (`policy_class` = `sb3_contrib.common.recurrent.policies.RecurrentActorCriticPolicy`), igual en `models/` que en `models/league/`.
+- **Por qué parecía PPO:** `load_sb3_model` (`tanks/agents/model_agent.py`) prueba PPO, A2C, DQN y después las de sb3-contrib, y `PPO.load` acepta el zip recurrente sin error. El objeto que devuelve es de clase `PPO`, pero su política es `RecurrentActorCriticPolicy`, así que **sigue siendo la LSTM**: `PPO.predict` delega en la política, que devuelve y recibe el estado `(h, c)`, y `ModelAgent.act` lo guarda entre pasos y lo reinicia en `reset`.
+- **Comprobado** con `student/check_recurrent_load.py` (nuevo) en `.venv` (SB3/sb3-contrib 2.9.2) y en `.venv-sb21` (2.1.0, Python 3.12):
+  - `load_sb3_model` → `PPO` con política `RecurrentActorCriticPolicy`; estado tras un `predict`: dos tensores (1, 1, 256);
+  - una partida contra hard en arena_01_open_field con `ModelAgent`, dos veces, y otra cargándolo explícitamente con `RecurrentPPO.load`: las tres idénticas (gana, 411 pasos, daño 3-0).
+- **Para la prueba en Python 3.8:** el entorno necesita `sb3-contrib==2.1.0` (misma versión menor que SB3 2.1.0). Sin sb3-contrib, `PPO.load` falla porque la política `RecurrentActorCriticPolicy` vive en sb3-contrib. Criterio para darla por buena: que la política sea `RecurrentActorCriticPolicy` y el estado no sea `None`, aunque la clase sea `PPO` (eso es lo normal con el cargador oficial). Basta con ejecutar `python student/check_recurrent_load.py` en ese entorno. En PC2 no hay Python 3.8; falta que lo repita PC1.
