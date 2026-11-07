@@ -13,6 +13,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -53,6 +54,7 @@ def main():
     ap.add_argument("--every", type=int, default=120)
     ap.add_argument("--settle", type=int, default=60)
     ap.add_argument("--extra", nargs="*", default=[], help="models to evaluate first (e.g. the init)")
+    ap.add_argument("--outbox", action="store_true", help="copy each evaluated snapshot to models/outbox/")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     os.chdir(ROOT)
@@ -93,6 +95,10 @@ def main():
                 f.write(row(name, res) + "\n")
             done.add(name)
             print(f"[watch] {row(name, res)}", flush=True)
+            if args.outbox:                                 # hand it to sync_models.py --publish
+                os.makedirs("models/outbox", exist_ok=True)
+                shutil.copy2(p, "models/outbox/")
+                print(f"[watch] copied {p} -> models/outbox/", flush=True)
         if not running and not [p for p in snaps if os.path.basename(p)[:-4] not in done]:
             print("[watch] training finished and every snapshot evaluated", flush=True)
             break

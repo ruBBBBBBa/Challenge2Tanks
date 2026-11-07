@@ -875,3 +875,10 @@
   Se lee antes de cada liga, así que vale para el pipeline en marcha desde la liga 10. **Ojo:** el pipeline solo mira `models/league/` y `models/shared/`. Ahora no hay ningún D2 ahí (D2b-distill está en `models/`): entrarán cuando PC2 los publique (sync) o se copien a `models/league/`.
 - Juez automático comprobado en producción: las tablas de R1 salen en las ligas 8 y 9, y R1 no está en `models/liga9/`.
 - **PENDIENTE PARA EL LUNES 9:** la carpeta de la entrega es provisional (`submissions/equipo_provisional/`). Al elegir el modelo definitivo hay que renombrarla al nombre real del equipo (`submissions/<equipo>/model.zip`), copiar dentro el modelo elegido y repetir las comprobaciones de la sección 10 (cargador oficial, `tools/evaluate.py` y los entornos limpios de 3.8 y 3.12).
+
+### 2026-11-07 16:30 · PC2 · D2 a la liga de PC1 y relanzamiento de D2-g1
+- **D2-g1 se cayó** a los 49k pasos (14:46): `ValueError: Key '   wr/model:models/pool_D2_g1/A-g7_8000k.zip' truncated to '...A-g...' that already exists`. El logger de texto de SB3 corta las claves a 36 caracteres y las de `pfsp/wr/<spec>` con `models/pool_D2_g1/` chocaban. Arreglo sin tocar `pfsp.py`: el pool pasa a `models/p/` (mismos 5 modelos; las claves caben). Relanzado desde cero con `logs/run_D2-g1.ps1` (PID 31440); log del intento fallido en `logs/D2-g1_crash1.*`.
+  - Aviso para PC1: cualquier `--league-glob` con rutas largas puede dar el mismo error en `pfsp.py`.
+- **Watcher relanzado:** `student/watch_snapshots.py --name D2-g1 --pid 31440 --procs 3 --outbox` (PID 15936), mismos 8 rivales. Opción nueva `--outbox`: copia cada snapshot a `models/outbox/` en cuanto acaba su evaluación.
+- **sync_models.py** solo publica `<prefijo>-*.zip`, así que `D` no deja pasar `D2-g1_*` ni `D2b-distill`. Relanzado con `--loop --publish D D2 D2b E` (PID 33816).
+- `models/D2b-distill.zip` copiado a `models/outbox/` y publicado: `logs/sync.log` 16:27:07 `publish: pushed models/league/D2b-distill.zip`; comprobado en `origin/main`.
