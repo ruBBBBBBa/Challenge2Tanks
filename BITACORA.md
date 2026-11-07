@@ -748,3 +748,13 @@
 | A-g7 (final) | 96 % | B-g4 (100 / 49 %), hard (48 / 100 %: 0-8-0 en oficiales) | 8 | 78,5 % |
 
   Contra rivales de fuera, A-g7_8000k gana todas las series. El A-g7 final se queda a cara o cruz contra hard en oficiales (8 empates de 8) y contra B-g4 en aleatorios. Su 78,5 % de P(campeón) viene de no perder nunca contra los otros A del cuadro.
+
+## 2026-11-07 14:00 · PC1 · Evaluación de la rama de PC4 (origin/OierX1R1)
+
+- La rama (commits `91aa524` y `e9ed060`, sin merge) trae `X1-antihard_10000k`, `X1-antihard_14000k` (15M pasos solo contra hard y solo en oficiales) y `models/reserved/R1.zip` (R1: semilla 7, ent 0.02, 15M pasos contra hard, medium y bots en `mixed`). Sus notas solo tienen evaluaciones de 2 partidas por rival.
+- Copiados con `git show` desde `../Challenge2Tanks-sync` (sin checkout ni merge) a `models/eval_pc4/`, que va al `.gitignore`. Los tres cargan con `load_sb3_model` (PPO, obs (77,), Discrete(6), [256, 256]) y son deterministas: la misma partida repetida da las mismas acciones.
+- 792 partidas deterministas: oficiales y los 8 aleatorios de la liga, por los dos lados, contra A-g7_8000k, A-g7, A-g6_4000k, A-g8_2000k/4000k, B-g4_3000k, C-g4_6000k, E-g1_2000k, hard y medium (D2-distill aún no existe). P(serie) con `series_win_prob`.
+  - **X1-antihard:** gana a hard 8-0-0 en oficiales, pero en aleatorios pierde o empata (0-8-8 y 0-6-10): 33 % de las partidas contra hard. Sobreajustado a los mapas oficiales. Pierde todas las series contra nuestros A, B, C y E.
+  - **R1:** gana a hard 20-4-0 (83 % de las partidas, 100 % de las series) y a medium 24-0-0, pero pierde todas las series contra A, B, C y E (0-0-8 contra el A-g7 final en oficiales).
+  - Nuestros A contra los 3 de PC4 (72 partidas): A-g7_8000k 36-36-0 y A-g7 final 46-26-0; los dos ganan el 100 % de las series.
+- Propuesta (pendiente de confirmar, sin publicar nada): ningún modelo de PC4 entra en el pool. R1 se queda como juez (nunca en el pool).
