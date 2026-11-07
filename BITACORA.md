@@ -1097,3 +1097,28 @@
 
 - En total hay 202 840 pasos del lado ganador; ningún modelo pasa del 50 %. Para llegar a los ~3M pasos harían falta partidas estocásticas (`winners_dataset.py --play`, ya preparado).
 - Ranking: C-g7_4500k 1809, A-g9 1793, B-g7_6000k 1776, A-g10_8000k 1766, A-g7_8000k 1744, D2b-distill 1716, hard 1500, medium 1448.
+
+### 2026-11-07 18:55 · PC2 · D3a: prueba de destilación con partidas ganadoras (solo para probar el proceso)
+- **Dataset:** `student/winners_dataset.py --league results/league_2026-11-07_1749_d3data.json --top 8 --streams 6 --verify 10 --out models/checkpoints_D3-distill/winners_d3a.npz` → 752 partidas ganadas, 197 810 pasos (C-g7 142, A-g9 116, B-g7 178, A-g10 86, A-g7 114, D2b 116; las 26 de hard no entran porque no es `kind == model`). **verify 10/10.** Para el verify copié A-g9 (sha `6561b59f`, idéntico) y A-g7_8000k a las rutas de PC1 (`models/A-g9.zip`, `models/candidatos/`), solo en local.
+- **Mezcla con A-g6:** las primeras 60 000 filas de `data2.npz` (360k pasos, `ag6_sub60k.npz`), no los 1,5M enteros: con D2-g1 en marcha había 0,5 GB de RAM libres.
+- **Destilación** (GPU, sin parar D2-g1): `distill.py train --data winners_d3a.npz ag6_sub60k.npz --init models/D2b-distill.zip --device cuda --lr 2e-4 --ce-coef 0.5 --vf-coef 0.1 --select acc --max-minutes 20 --out models/D3a-distill.zip` → 67 épocas (~15 s), **val acc 0,857** (acc_conf 0,889). Arranca en 0,66: imita a 6 jugadores distintos, no a un maestro.
+- **eval_vs.py** (D3a y D2b a la vez, 11 rivales: los 8 de D2b, R1 solo como rival, más A-g9_12006k, B-g7_6000k y C-g7_4500k). Celdas «oficiales · aleatorios», W-D-L:
+
+| rival | D3a-distill | D2b-distill |
+|---|---|---|
+| hard | 4-4-0 · 14-2-0 | 6-2-0 · 16-0-0 |
+| A-g7_8000k | 0-8-0 · 0-16-0 | 0-8-0 · 0-14-2 |
+| A-g6_4000k | 0-8-0 · 0-16-0 | 0-8-0 · 0-16-0 |
+| A-g5_24000k | 6-2-0 · 14-2-0 | 6-2-0 · 12-4-0 |
+| B-g4_3000k | **2-6-0 · 4-12-0** | 0-8-0 · 0-14-2 |
+| C-g4_6000k | **2-6-0** · 2-14-0 | 0-8-0 · 2-14-0 |
+| E-g1_2000k | 6-2-0 · 12-4-0 | 8-0-0 · 16-0-0 |
+| R1 | 4-4-0 · 4-12-0 | 4-4-0 · 4-12-0 |
+| A-g9_12006k | 0-8-0 · 0-10-6 | 0-6-2 · 0-8-8 |
+| B-g7_6000k | 0-2-6 · **4-8-4** | 0-0-8 · 0-4-12 |
+| C-g7_4500k | 0-8-0 · 0-12-4 | 0-8-0 · 0-12-4 |
+| **total** | **24-58-6 · 54-108-14** | 24-54-10 · 50-98-28 |
+
+  Series (P > 50 % ganada, P < 50 % perdida, 48–49 % = todo empates): **D3a gana 12 y pierde 3 de 22; D2b gana 9 y pierde 7.** D3a pierde algo contra hard y E (sigue ganando la serie) y mejora contra B-g4, C-g4 y, sobre todo, B-g7, que destrozaba a D2b. Contra A-g9 y C-g7 sigue perdiendo en aleatorios.
+- Es solo la prueba del proceso: no se relanza el RL desde D3a. La decisión se toma con D3, con los datos `--play` de PC1. Tablas en `results/eval_D3a_vs_D2b.md/.json`.
+- Nota: el campo `init` del json de `distill.py` guarda la cadena de maestros de los datos, no el `--init`; aquí el `--init` fue D2b-distill.
