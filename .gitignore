@@ -6,3 +6,4 @@ out/
 .venv/
 models/shared/
 models/outbox/
+models/eval_pc4/

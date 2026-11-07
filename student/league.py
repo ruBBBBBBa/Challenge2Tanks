@@ -135,13 +135,20 @@ def bradley_terry(n, games, iters=500):
 
 
 def bo3(rng, a, b, maps, table):
-    """Best of 3 between participants a and b on `maps`, alternating sides. Ties -> damage -> coin."""
+    """Best of 3 as in the README: draws do not count, tie-break by damage dealt.
+    Drawn games are replayed on the next (map, side) combination of the set (sides alternate) until someone
+    wins 2 or every distinct combination has been played (2 x len(maps): after that the deterministic games
+    would repeat). Then: more wins; else more total damage over the series; else a coin.
+    Returns (winner, how) with how in {"wins", "damage", "coin"}."""
+    order = [maps[k] for k in rng.permutation(len(maps))]
+    s0 = int(rng.integers(2))
+    # two passes over the maps with sides alternating game after game; with an even number of maps the
+    # second pass is shifted by one map so that every (map, side) appears exactly once
+    second = order[1:] + order[:1] if len(order) % 2 == 0 else order
+    combos = [(m, (s0 + g) % 2) for g, m in enumerate(order + second)]
     wins, dmg = [0, 0], [0, 0]
-    side = int(rng.integers(2))
-    for g in range(3):
-        if max(wins) == 2:
-            break
-        r = table[(a, b, maps[int(rng.integers(len(maps)))], (side + g) % 2)]
+    for m, side in combos:
+        r = table[(a, b, m, side)]
         r = r[int(rng.integers(len(r)))]
         if r["result"] == "win":
             wins[0] += 1
@@ -149,23 +156,61 @@ def bo3(rng, a, b, maps, table):
             wins[1] += 1
         dmg[0] += r["dmg"]
         dmg[1] += r["dmg_en"]
+        if max(wins) == 2:
+            break
     if wins[0] != wins[1]:
-        return a if wins[0] > wins[1] else b
+        return (a if wins[0] > wins[1] else b), "wins"
     if dmg[0] != dmg[1]:
-        return a if dmg[0] > dmg[1] else b
-    return a if rng.random() < 0.5 else b
+        return (a if dmg[0] > dmg[1] else b), "damage"
+    return (a if rng.random() < 0.5 else b), "coin"
 
 
 def simulate_bracket(entrants, table, official_maps, final_maps, sims, seed=0):
+    """-> ({p: P(champion)}, {p: share of p's series decided by a coin}, overall share of coin series)."""
     rng = np.random.default_rng(seed)
-    champs = defaultdict(int)
+    champs, series, coins = defaultdict(int), defaultdict(int), defaultdict(int)
     for _ in range(sims):
         alive = list(rng.permutation(entrants))
         while len(alive) > 1:
             maps = final_maps if len(alive) == 2 else official_maps
-            alive = [bo3(rng, alive[k], alive[k + 1], maps, table) for k in range(0, len(alive), 2)]
+            nxt = []
+            for k in range(0, len(alive), 2):
+                w, how = bo3(rng, alive[k], alive[k + 1], maps, table)
+                nxt.append(w)
+                for p in (alive[k], alive[k + 1]):
+                    series[int(p)] += 1
+                    coins[int(p)] += how == "coin"
+            alive = nxt
         champs[int(alive[0])] += 1
-    return {i: champs[i] / sims for i in entrants}
+    overall = sum(coins.values()) / max(1, sum(series.values()))
+    return ({i: champs[i] / sims for i in entrants}, {i: coins[i] / max(1, series[i]) for i in entrants}, overall)
+
+
+OUTSIDE_SERIES = 2000   # simulated series per (A model, outside rival, map set)
+FLIP = {"win": "lose", "lose": "win", None: None}
+
+
+def build_table(rows):
+    """{(a, b, map, side of a): [rows from a's view]} from league rows (both directions)."""
+    table = defaultdict(list)
+    for r in rows:
+        table[(r["i"], r["j"], r["map"], r["side"])].append(r)
+        table[(r["j"], r["i"], r["map"], 1 - r["side"])].append(
+            dict(r, result=FLIP[r["result"]], dmg=r["dmg_en"], dmg_en=r["dmg"]))
+    return table
+
+
+def series_win_prob(table, a, b, maps, n=OUTSIDE_SERIES, seed=1):
+    """P(a wins a best-of-3 series against b on `maps`) with the README rule (see bo3), by simulation."""
+    rng = np.random.default_rng(seed)
+    return float(np.mean([bo3(rng, a, b, maps, table)[0] == a for _ in range(n)]))
+
+
+def head_to_head(table, a, b, maps):
+    """(wins, draws, losses) of a against b over every (map, side) of `maps`."""
+    res = [r["result"] for m in maps for side in (0, 1) for r in table.get((a, b, m, side), [])]
+    return res.count("win"), res.count(None), res.count("lose")
+
 
 
 def analyse(names, kinds, all_rows, official_maps, random_maps, sims):
@@ -183,15 +228,12 @@ def analyse(names, kinds, all_rows, official_maps, random_maps, sims):
     order = list(np.argsort(-elo))
 
     # results seen from both sides: per[p] = list of (opponent, result, dmg, map)
-    flip = {"win": "lose", "lose": "win", None: None}
+    flip = FLIP
     per = defaultdict(list)
-    table = defaultdict(list)
     for r in rows:
         per[r["i"]].append((r["j"], r["result"], r["dmg"], r["map"]))
         per[r["j"]].append((r["i"], flip[r["result"]], r["dmg_en"], r["map"]))
-        table[(r["i"], r["j"], r["map"], r["side"])].append(r)
-        table[(r["j"], r["i"], r["map"], 1 - r["side"])].append(
-            dict(r, result=flip[r["result"]], dmg=r["dmg_en"], dmg_en=r["dmg"]))
+    table = build_table(rows)
 
     def wr(lst):
         return sum(x[1] == "win" for x in lst) / len(lst) if lst else float("nan")
@@ -229,9 +271,13 @@ def analyse(names, kinds, all_rows, official_maps, random_maps, sims):
     size = min(size, 8)
     entrants = contenders[:size]
     final_maps = random_maps or official_maps
-    champ = simulate_bracket(entrants, table, official_maps or final_maps, final_maps, sims) if size >= 2 else {}
+    champ, coin, coin_all = simulate_bracket(entrants, table, official_maps or final_maps, final_maps, sims) \
+        if size >= 2 else ({}, {}, None)
     for p, c in champ.items():
         stats[p]["p_champion"] = c
+        stats[p]["coin_series"] = coin[p]
+    for s in stats:
+        s["coin_series_all"] = coin_all
 
     matrix = {names[p]: {names[q]: float(np.mean([score[x[1] or "draw"] for x in per[p] if x[0] == q]))
                          for q in order[:10] if q != p and any(x[0] == q for x in per[p])}
@@ -253,6 +299,19 @@ def analyse(names, kinds, all_rows, official_maps, random_maps, sims):
             steps=float(np.mean([r["steps"] for r, _ in g])),
             draws=sum(r["result"] is None for r, _ in g) / len(g),
             hidden=sum(mine(r, f, "hidden") for r, f in g) / max(1, sum(r["steps"] for r, _ in g)))
+    # series against outside rivals: every A model vs every participant that is not A, README rule
+    final_maps = random_maps or official_maps
+    family_a = [p for p in order if kinds[p] == "model" and names[p].startswith("A-")]
+    outside = [q for q in order if not names[q].startswith("A-")]
+    for p in family_a:
+        out = {}
+        for q in outside:
+            p_off = series_win_prob(table, p, q, official_maps or final_maps)
+            p_rnd = series_win_prob(table, p, q, final_maps)
+            games = [x for x in per[p] if x[0] == q]
+            out[names[q]] = dict(p_official=float(p_off), p_random=float(p_rnd), mean=float((p_off + p_rnd) / 2),
+                                 losses=sum(x[1] == "lose" for x in games), games=len(games))
+        stats[p]["vs_outside"] = out
     return [stats[p] for p in order], suspicious, matrix
 
 
@@ -270,17 +329,20 @@ def write_report(path, stats, suspicious, matrix, names, meta):
          f"{len(names)} participantes · {meta['n_games']} partidas · mapas: {meta['maps_summary']} · "
          f"{meta['minutes']:.1f} min · {meta['procs']} procesos", "",
          "| # | participante | tipo | Elo | W-D-L | win rate | vs top-3 | peor emparejamiento | aleatorios | "
-         "oficiales | gen (Elo gen) | empates | daño | sospechosas | P(campeón) |",
-         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+         "oficiales | gen (Elo gen) | empates | daño | sospechosas | P(campeón) | series a moneda |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for k, s in enumerate(stats, 1):
         worst = f"{s['worst']} ({pct(s['worst_score'])})" if s["worst"] else "-"
         L.append(f"| {k} | {s['name']} | {s['kind']} | {s['elo']:.0f} | {s['win']}-{s['draw']}-{s['lose']} | "
                  f"{pct(s['win_rate'])} | {pct(s['wr_top3'])} | {worst} | {pct(s['wr_random'])} | "
                  f"{pct(s['wr_official'])} | {fmt_gen(s)} | {pct(s['draw'] / max(1, s['games']))} | {s['avg_damage']:.2f} | "
-                 f"{s.get('suspicious', 0)} | {pct(s.get('p_champion'))} |")
+                 f"{s.get('suspicious', 0)} | {pct(s.get('p_champion'))} | {pct(s.get('coin_series'))} |")
     L += ["", "Puntuación = (W + 0.5·D) / partidas. Peor emparejamiento = rival con menor puntuación. "
           "P(campeón) = bracket de 8 al mejor de 3 (rondas en oficiales, final en aleatorios), "
-          f"{meta['sims']} sorteos. Los mapas gen (map_gen.py) no entran en el Elo, el W-D-L ni el bracket: "
+          f"{meta['sims']} sorteos. Regla del README: los empates no cuentan (se juega la siguiente combinación "
+          "de mapa y lado, hasta agotarlas: 2 × mapas), después decide el daño total de la serie y, si es igual, "
+          "una moneda. Series a moneda = % de las series de ese modelo decididas a cara o cruz "
+          f"(en todo el cuadro: {pct(stats[0].get('coin_series_all'))}). Los mapas gen (map_gen.py) no entran en el Elo, el W-D-L ni el bracket: "
           "solo en la columna gen (win rate y Elo propio, centrado en la media del principal).", "", "## Cara a cara (top-10, puntuación de la fila contra la columna)", ""]
     cols = list(matrix)
     L.append("| | " + " | ".join(cols) + " |")
@@ -299,6 +361,25 @@ def write_report(path, stats, suspicious, matrix, names, meta):
                      f"{pct(b['draws'])} | {pct(b['hidden'])} |")
     L += ["", "Puntería = impactos / disparos. Victorias por destrucción / timeout: sobre las victorias. "
           "Escondido = en un arbusto e invisible para el rival.", ""]
+    fam = [s for s in stats if s.get("vs_outside")]
+    if fam:
+        L += ["", "## Series contra rivales de fuera (familia A)", "",
+              "P(ganar la serie al mejor de 3 con la regla del cuadro) contra cada rival que no es A: en oficiales "
+              "(rondas) y en aleatorios (final), y la media de las dos. Derrotas = partidas perdidas contra ese rival "
+              f"en los mapas principales. {OUTSIDE_SERIES} series simuladas por casilla.", "",
+              "| modelo A | media | peor rival (media) | rivales con media < 50 % | derrotas |", "|---|---|---|---|---|"]
+        for s in fam:
+            v = s["vs_outside"]
+            worst = min(v, key=lambda q: v[q]["mean"])
+            L.append(f"| {s['name']} | {pct(np.mean([x['mean'] for x in v.values()]))} | {worst} "
+                     f"({pct(v[worst]['mean'])}) | {sum(x['mean'] < 0.5 for x in v.values())} | "
+                     f"{sum(x['losses'] for x in v.values())} |")
+        L += ["", "| modelo A | rival | oficiales | aleatorios | media | derrotas / partidas |",
+              "|---|---|---|---|---|---|"]
+        for s in fam:
+            for q, x in s["vs_outside"].items():
+                L.append(f"| {s['name']} | {q} | {pct(x['p_official'])} | {pct(x['p_random'])} | "
+                         f"{pct(x['mean'])} | {x['losses']} / {x['games']} |")
     L += ["", f"## Partidas sospechosas (timeout con 0 daño): {len(suspicious)}", ""]
     for r in suspicious[:30]:
         L.append(f"- {names[r['i']]} (lado {r['side']}) vs {names[r['j']]} · {r['map']} · seed {r['seed']}")

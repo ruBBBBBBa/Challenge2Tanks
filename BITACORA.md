@@ -653,6 +653,113 @@
   - Con el PID real 944689, `is_training` = True.
 - El comando para reanudar mañana no cambia.
 
+## 2026-11-07 · PC2 · Evaluación de D y de los modelos nuevos de cada rama
+
+- `student/eval_snapshots.py`, determinista, 40 partidas por pareja (16 official_aug + 4 aleatorios × 2 lados). Tabla completa en `results/eval_2026-11-07_D_y_nuevos.md` y `.json`. Total W-D-L sin contar el cruce consigo mismo:
+
+| modelo | hard | contra los demás modelos (sin hard ni el cruce consigo mismo: 4 rivales; D, 5) |
+|---|---|---|
+| A-g6_4000k | 36-4-0 | 76-80-4 |
+| C-g4_6000k | 38-2-0 | 72-74-14 |
+| B-g4_3000k | 40-0-0 | 62-90-8 |
+| A-g5_24000k | 40-0-0 | 30-52-78 |
+| E-g1_2000k | 40-0-0 | 2-20-138 |
+| D-g1b_5M (ckpt) | 8-30-2 | 6-22-172 |
+| D-g1b_4000k | 12-22-6 | 0-8-192 |
+| D-g1b_2000k | 6-34-0 | 0-22-178 |
+
+- **D no cumple el criterio de CLAUDE.md** (≥ 50 % contra hard en determinista): su mejor resultado es 12-22-6 (30 %), y pierde casi todo contra los modelos nuevos. D-g1c (la continuación de D-g1b) quedó lanzado en GPU antes de esta evaluación.
+- **E-g1_2000k no generaliza:** gana 40-0-0 a hard, pero pierde 0-0-40 contra A-g6, 2-10-28 contra A-g5, 0-8-32 contra B-g4 y 0-2-38 contra C-g4. El 152-8-0 de ayer era contra rivales de su propia liga (A-g4, B-g1, C-g1).
+- **Arriba:** A-g6, C-g4 y B-g4 casi solo empatan entre ellos. A-g6 contra B y C: 4-34-2 y 6-32-2. B contra C: 8-30-2. El problema de los empates sigue entre los mejores. Son empates de verdad: al acabar el tiempo se decide por vida y después por daño, pero el daño de cada uno es la vida que ha perdido el otro, así que con la misma vida también hay el mismo daño.
+
+## 2026-11-07 00:13 · PC1 · A-g7
+
+- Comando: `python student/train_agent.py --name A-g7 --init models/liga6/A-g6_4000k.zip --league-glob models/liga6/*.zip --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-06T22:38 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 2.00 |
+| basic | 2 | 0 | 0 | 100% | 2.50 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:easy | 2 | 0 | 0 | 100% | 1.00 |
+| baseline:hard | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-07 12:45 · PC1 · Pipeline reanudado tras reinicio
+
+- El portátil se reinició durante la noche; A-g7 ya había terminado (`models/A-g7.zip` a las 00:13). No quedaba nada en marcha: ni el pipeline ni el sync.
+- **Corregido en `pipeline.py`:** el modelo final se guarda después del rollout que cruza el último snapshot, así que su `steps` es hasta ~8k mayor (A-g7: 12 006 540 frente a `A-g7_12000k`). Con la comparación exacta entraban los dos en la liga (también `A-g2_20000k` y `A-g2.zip` en ligas anteriores). Ahora se descarta el snapshot si está a menos de 10k pasos del final.
+- Reanudado: pipeline **PID 6561** (`logs/pipeline.pid`, salida en `logs/pipeline4.out`), con liga7 → A-g8 … A-g13 y PFSP hard,variance,… :
+  `nohup .venv/bin/python student/pipeline.py --wait-pid logs/A-g7.pid --generations 6 --timesteps 12000000 --pfsp-modes hard,variance,hard,variance,hard,variance > logs/pipeline4.out 2>&1 &`
+  El PID guardado de A-g7 (944689) no correspondía a ningún proceso tras el reinicio y se detectó como terminado.
+- Sync relanzado igual que antes: `nohup .venv/bin/python student/sync_models.py --loop --publish A > logs/sync.out 2>&1 &`, **PID 6564** (`logs/sync.pid`).
+
+## 2026-11-07 12:48 · PC1 · pipeline: A-g7 → liga7 → A-g8
+
+- Liga: `results/league_2026-11-07_1244_liga7.json` (9 modelos + baselines + bots).
+- Elegido: `models/liga7/A-g7_8000k.zip` (mayor Elo principal de la rama A (1903)).
+- Lanzado A-g8 (PID 7228): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g8 --init models/liga7/A-g7_8000k.zip --league-glob 'models/liga7/*.zip' --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g8.out 2>&1 &`
+- Resumen: `results/pipeline_liga7.md`.
+
+## 2026-11-07 13:30 · PC1 · league.py: cuadro con la regla del README
+
+- Regla del README: «best of 3 (draws do not count; tie-break by damage dealt)». La simulación anterior contaba los empates como partidas jugadas y, si la serie acababa igualada, tiraba una moneda: en la liga 7, el 44 % de las series de las rondas y el 71 % de las finales se decidían a cara o cruz.
+- Ahora:
+  - una partida empatada no cuenta y se juega la siguiente combinación de mapa y lado del mismo conjunto (oficiales en las rondas, aleatorios en la final), alternando lados, hasta que alguien gane 2 o se agoten las combinaciones distintas (8 y 16);
+  - después gana quien tenga más victorias; si siguen iguales, el daño total de la serie; si también es igual, moneda.
+- Columna nueva en la tabla de la liga, «series a moneda»: el % de las series de cada modelo que se deciden por moneda, más el total del cuadro en la nota.
+- Pruebas con tablas sintéticas: las combinaciones siempre son distintas y con lados alternos (también con un número par de mapas); todo empate → moneda; una sola victoria → gana; solo empates pero más daño → gana por daño.
+- Liga 7 recalculada con la regla nueva (mismas partidas, 20 000 sorteos):
+
+| modelo | Elo | P(campeón) antes | P(campeón) ahora | series a moneda |
+|---|---|---|---|---|
+| A-g7_8000k | 1903 | 25,6 % | 12,7 % | 47 % |
+| A-g6_4000k | 1898 | 13,0 % | 0,7 % | 43 % |
+| A-g7_4000k | 1877 | 18,2 % | 5,4 % | 33 % |
+| C-g4_6000k | 1863 | 2,9 % | 0,0 % | 0 % |
+| B-g4_3000k | 1862 | 5,3 % | 2,7 % | 18 % |
+| A-g7 (final) | 1814 | 35,0 % | **78,5 %** | 16 % |
+
+  Series a moneda en todo el cuadro: 25,5 %. El A-g7 final no pierde ninguna partida contra el resto del cuadro y gana 2 de las 8 combinaciones oficiales contra casi todos: cuando los empates se repiten, eso le basta para ganar casi todas las series. A-g7_8000k empata las 8 combinaciones oficiales contra varios A y depende de la moneda en casi la mitad de sus series.
+- El pipeline en marcha la usará a partir de la liga 8 (lanza `league.py` como proceso nuevo).
+
+## 2026-11-07 14:00 · PC1 · league.py: tabla «series contra rivales de fuera»
+
+- Nuevas funciones reutilizables en `student/league.py`:
+  - `build_table(rows)`;
+  - `series_win_prob(table, a, b, maps)`: P(ganar la serie) con la regla del README, por simulación, 2000 series;
+  - `head_to_head(table, a, b, maps)`: W-D-L.
+- En el informe de la liga (desde la liga 8), sección nueva «Series contra rivales de fuera (familia A)»:
+  - resumen por modelo A: media, peor rival, rivales por debajo del 50 % y derrotas;
+  - detalle por rival que no es A (B, C, D, E, X1, hard, medium y bots): P(serie) en oficiales (rondas), en aleatorios (final), la media y derrotas/partidas.
+  Se guarda también en el JSON (`ranking[*].vs_outside`).
+- Liga 7 recalculada:
+
+| modelo A | media | peor rival (oficiales / aleatorios) | derrotas (en 624 partidas) | P(campeón) |
+|---|---|---|---|---|
+| A-g7_8000k | 100 % | ninguno por debajo del 100 % | 4 | 12,7 % |
+| A-g6_4000k | 96 % | C-g4 (100 / 49 %), B-g4 (48 / 100 %) | 6 | 0,7 % |
+| A-g7_4000k | 99 % | E-g1 (100 / 72 %) | 6 | 5,4 % |
+| A-g7 (final) | 96 % | B-g4 (100 / 49 %), hard (48 / 100 %: 0-8-0 en oficiales) | 8 | 78,5 % |
+
+  Contra rivales de fuera, A-g7_8000k gana todas las series. El A-g7 final se queda a cara o cruz contra hard en oficiales (8 empates de 8) y contra B-g4 en aleatorios. Su 78,5 % de P(campeón) viene de no perder nunca contra los otros A del cuadro.
+
+## 2026-11-07 14:00 · PC1 · Evaluación de la rama de PC4 (origin/OierX1R1)
+
+- La rama (commits `91aa524` y `e9ed060`, sin merge) trae `X1-antihard_10000k`, `X1-antihard_14000k` (15M pasos solo contra hard y solo en oficiales) y `models/reserved/R1.zip` (R1: semilla 7, ent 0.02, 15M pasos contra hard, medium y bots en `mixed`). Sus notas solo tienen evaluaciones de 2 partidas por rival.
+- Copiados con `git show` desde `../Challenge2Tanks-sync` (sin checkout ni merge) a `models/eval_pc4/`, que va al `.gitignore`. Los tres cargan con `load_sb3_model` (PPO, obs (77,), Discrete(6), [256, 256]) y son deterministas: la misma partida repetida da las mismas acciones.
+- 792 partidas deterministas: oficiales y los 8 aleatorios de la liga, por los dos lados, contra A-g7_8000k, A-g7, A-g6_4000k, A-g8_2000k/4000k, B-g4_3000k, C-g4_6000k, E-g1_2000k, hard y medium (D2-distill aún no existe). P(serie) con `series_win_prob`.
+  - **X1-antihard:** gana a hard 8-0-0 en oficiales, pero en aleatorios pierde o empata (0-8-8 y 0-6-10): 33 % de las partidas contra hard. Sobreajustado a los mapas oficiales. Pierde todas las series contra nuestros A, B, C y E.
+  - **R1:** gana a hard 20-4-0 (83 % de las partidas, 100 % de las series) y a medium 24-0-0, pero pierde todas las series contra A, B, C y E (0-0-8 contra el A-g7 final en oficiales).
+  - Nuestros A contra los 3 de PC4 (72 partidas): A-g7_8000k 36-36-0 y A-g7 final 46-26-0; los dos ganan el 100 % de las series.
+- Propuesta (pendiente de confirmar, sin publicar nada): ningún modelo de PC4 entra en el pool. R1 se queda como juez (nunca en el pool).
+]633;E;echo;163cbfb7-9676-4ce0-8d63-91dc497f0434]633;C
+
 ## 2026-11-07 01:06 · PC4 · test-X1
 
 - Comando: `python student/train_agent.py --name test-X1 --init baseline:hard --reward default --opponents {"baseline:hard": 1.0} --maps official --timesteps 20000 --n-envs 3 --lr 1e-4 --snapshot-every 100000000 --eval-games 2`
