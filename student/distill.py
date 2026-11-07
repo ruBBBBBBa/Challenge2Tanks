@@ -124,19 +124,21 @@ def seq_forward(policy, obs, starts, states):
 
 
 def zero_states(policy, n):
-    z = lambda: th.zeros(policy.lstm_actor.num_layers, n, policy.lstm_actor.hidden_size)  # noqa: E731
+    z = lambda: th.zeros(policy.lstm_actor.num_layers, n, policy.lstm_actor.hidden_size,  # noqa: E731
+                         device=policy.device)
     return ((z(), z()), (z(), z()))
 
 
 def run_epoch(policy, data, idx, args, opt=None):
     obs, probs, ret, mask, starts = data
-    tot = {"kl": 0.0, "acc": 0.0, "vloss": 0.0, "n": 0}
+    dev = policy.device
+    tot = {"kl": 0.0, "acc": 0.0, "acc_conf": 0.0, "vloss": 0.0, "n": 0}
     for b in range(0, len(idx), args.batch_seqs):
         ib = idx[b:b + args.batch_seqs]
         states = zero_states(policy, len(ib))
         for w in range(0, obs.shape[1], args.bptt):
             sl = slice(w, w + args.bptt)
-            o, p, r, m, s = (th.as_tensor(a[ib, sl]) for a in (obs, probs, ret, mask, starts))
+            o, p, r, m, s = (th.as_tensor(a[ib, sl]).to(dev) for a in (obs, probs, ret, mask, starts))
             with th.set_grad_enabled(opt is not None):
                 logits, v, states = seq_forward(policy, o, s.float(), states)
                 p = p.reshape(-1, 6)
@@ -145,6 +147,12 @@ def run_epoch(policy, data, idx, args, opt=None):
                 m = m.reshape(-1).float()
                 vloss = ((v - r.reshape(-1)) ** 2 * m).sum() / m.sum().clamp_min(1)
                 loss = kl + args.vf_coef * vloss
+                real = p.sum(-1) > 0.5                      # padding rows have p = 0
+                if args.ce_coef:                            # cross-entropy with the teacher's favourite action
+                    ce = -logq.gather(1, p.argmax(-1, keepdim=True)).squeeze(1)
+                    loss = loss + args.ce_coef * (ce * real).sum() / real.sum().clamp_min(1)
+                conf = real & (p.max(-1).values > 0.6)
+                hit = (logits.argmax(-1) == p.argmax(-1)).float()
             if opt is not None:
                 opt.zero_grad()
                 loss.backward()
@@ -152,53 +160,81 @@ def run_epoch(policy, data, idx, args, opt=None):
                 opt.step()
             states = tuple((h.detach(), c.detach()) for h, c in states)
             tot["kl"] += kl.item()
-            tot["acc"] += (logits.argmax(-1) == p.argmax(-1)).float().mean().item()
+            tot["acc"] += hit.mean().item()
+            tot["acc_conf"] += ((hit * conf).sum() / conf.sum().clamp_min(1)).item()
             tot["vloss"] += vloss.item()
             tot["n"] += 1
-    return {k: tot[k] / tot["n"] for k in ("kl", "acc", "vloss")}
+    return {k: tot[k] / tot["n"] for k in ("kl", "acc", "acc_conf", "vloss")}
 
 
 def train(args):
     from sb3_contrib import RecurrentPPO
     th.set_num_threads(args.threads)
     th.manual_seed(args.seed)
-    d = np.load(args.data)
-    teacher = str(d["teacher"]) if "teacher" in d.files else HARD   # older data files: hard
-    print(f"teacher {teacher}")
-    ret, mask = returns_and_mask(d["rew"], d["done"])
-    starts = np.ones_like(d["done"])
-    starts[1:] = d["done"][:-1]
-    data = [segments(a, args.seg_len) for a in (d["obs"], d["probs"], ret, mask, starts)]
-    data[4][:, 0] = True  # each segment starts from a zero LSTM state
-    S = len(data[0])
-    perm = np.random.default_rng(args.seed).permutation(S)
-    n_val = max(1, int(S * args.val_frac))
-    val_idx, tr_idx = np.sort(perm[:n_val]), perm[n_val:]
-    print(f"{S} segments x {args.seg_len} steps  (train {len(tr_idx)}, val {n_val})")
+    # Several data files: segments are cut per file (returns never flow from one file into the next) and
+    # concatenated. Validation split per file: file k uses default_rng(seed + k), so file 0 keeps exactly
+    # the split of a previous single-file run (no leakage when --init continues from that run).
+    parts, val_idx, tr_idx, teachers, off = [], [], [], [], 0
+    for k, path in enumerate(args.data):
+        d = np.load(path)
+        teachers.append(str(d["teacher"]) if "teacher" in d.files else HARD)   # older data files: hard
+        ret, mask = returns_and_mask(d["rew"], d["done"])
+        starts = np.ones_like(d["done"])
+        starts[1:] = d["done"][:-1]
+        seg = [segments(a, args.seg_len) for a in (d["obs"], d["probs"], ret, mask, starts)]
+        seg[4][:, 0] = True  # each segment starts from a zero LSTM state
+        S = len(seg[0])
+        perm = np.random.default_rng(args.seed + k).permutation(S)
+        n_val = max(1, int(S * args.val_frac))
+        val_idx.append(np.sort(perm[:n_val]) + off)
+        tr_idx.append(perm[n_val:] + off)
+        parts.append(seg)
+        off += S
+        print(f"{path}: teacher {teachers[-1]}, {S} segments x {args.seg_len} (val {n_val})")
+        del d
+    data = [np.concatenate([p[i] for p in parts]) for i in range(5)] if len(parts) > 1 else parts[0]
+    del parts
+    val_idx, tr_idx = np.concatenate(val_idx), np.concatenate(tr_idx)
+    teacher = teachers[0] if len(set(teachers)) == 1 else ",".join(teachers)
+    print(f"{len(data[0])} segments (train {len(tr_idx)}, val {len(val_idx)})")
 
     env = DummyVecEnv([lambda: StudentTanksEnv(opponent="basic", maps="official")])
-    model = RecurrentPPO("MlpLstmPolicy", env, policy_kwargs=POLICY_KWARGS, seed=args.seed,
-                         device="cpu", **RL_KWARGS)
+    if args.init:
+        model = RecurrentPPO.load(args.init, env=env, device=args.device)
+        print(f"init from {args.init}")
+    else:
+        model = RecurrentPPO("MlpLstmPolicy", env, policy_kwargs=POLICY_KWARGS, seed=args.seed,
+                             device=args.device, **RL_KWARGS)
     policy = model.policy
+    print(f"device {policy.device}")
     opt = th.optim.Adam(policy.parameters(), lr=args.lr)
-    sched = th.optim.lr_scheduler.CosineAnnealingLR(opt, args.epochs)
-    best = None
+    t_start, best, last = time.time(), None, 0.0
     for ep in range(args.epochs):
         t0 = time.time()
+        # cosine LR over --epochs, or over the time budget with --max-minutes
+        frac = ep / args.epochs
+        if args.max_minutes:
+            frac = max(frac, (t0 - t_start) / (60 * args.max_minutes))
+            if (t0 - t_start) + last > 60 * args.max_minutes:
+                print(f"time budget reached ({args.max_minutes} min): stop before epoch {ep + 1}")
+                break
+        for g in opt.param_groups:
+            g["lr"] = args.lr * 0.5 * (1 + np.cos(np.pi * min(frac, 1.0)))
         policy.train()
         tr = run_epoch(policy, data, np.random.permutation(tr_idx), args, opt)
         policy.eval()
         va = run_epoch(policy, data, val_idx, args)
-        sched.step()
-        print(f"epoch {ep + 1:3d}  train kl {tr['kl']:.4f} acc {tr['acc']:.3f} v {tr['vloss']:.3f} | "
-              f"val kl {va['kl']:.4f} acc {va['acc']:.3f} v {va['vloss']:.3f}  ({time.time() - t0:.0f}s)",
-              flush=True)
-        if best is None or va["kl"] < best:
-            best = va["kl"]
+        last = time.time() - t0
+        print(f"epoch {ep + 1:3d}  lr {opt.param_groups[0]['lr']:.2e}  train kl {tr['kl']:.4f} acc {tr['acc']:.3f} "
+              f"v {tr['vloss']:.3f} | val kl {va['kl']:.4f} acc {va['acc']:.3f} acc_conf {va['acc_conf']:.3f} "
+              f"v {va['vloss']:.3f}  ({last:.0f}s, {(time.time() - t_start) / 60:.0f} min)", flush=True)
+        score = va["kl"] if args.select == "kl" else -va["acc"]
+        if best is None or score < best:
+            best = score
             model.save(args.out)
             print(f"  saved {args.out}")
     with open(os.path.splitext(args.out)[0] + ".json", "w") as f:
-        json.dump({**vars(args), "best_val_kl": best, "policy_kwargs": POLICY_KWARGS, "rl_kwargs": RL_KWARGS,
+        json.dump({**vars(args), "best_val_kl" if args.select == "kl" else "best_val_acc": best if args.select == "kl" else -best, "policy_kwargs": POLICY_KWARGS, "rl_kwargs": RL_KWARGS,
                    "date": time.strftime("%Y-%m-%d %H:%M"), "computer": "PC2",
                    "init": "baseline:hard" if teacher == HARD else teacher, "teacher": teacher}, f, indent=2)
 
@@ -224,8 +260,15 @@ if __name__ == "__main__":
     t.add_argument("--val-frac", type=float, default=0.05)
     t.add_argument("--threads", type=int, default=8)
     t.add_argument("--out", default="models/D-distill.zip")
+    t.add_argument("--init", default=None, help="RecurrentPPO zip to continue from (default: new network)")
+    t.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+    t.add_argument("--ce-coef", type=float, default=0.0,
+                   help="weight of the cross-entropy with the teacher's favourite action (deterministic play)")
+    t.add_argument("--select", default="kl", choices=["kl", "acc"], help="keep the epoch with best val kl or acc")
+    t.add_argument("--max-minutes", type=float, default=0.0, help="time budget; the cosine LR follows it")
+    t.add_argument("--data", nargs="+", default=[DATA], help="one or more gen files (concatenated)")
+    g.add_argument("--data", default=DATA)
     for p in (g, t):
-        p.add_argument("--data", default=DATA)
         p.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     {"gen": gen, "train": train}[a.cmd](a)

@@ -758,3 +758,41 @@
   - **R1:** gana a hard 20-4-0 (83 % de las partidas, 100 % de las series) y a medium 24-0-0, pero pierde todas las series contra A, B, C y E (0-0-8 contra el A-g7 final en oficiales).
   - Nuestros A contra los 3 de PC4 (72 partidas): A-g7_8000k 36-36-0 y A-g7 final 46-26-0; los dos ganan el 100 % de las series.
 - Propuesta (pendiente de confirmar, sin publicar nada): ningún modelo de PC4 entra en el pool. R1 se queda como juez (nunca en el pool).
+
+## 2026-11-07 14:50 · PC2 · Rama D: destilar de un maestro fuerte (D-g1b → D2-distill → D2b-distill) y lanzamiento de D2-g1
+
+**Resultado para el informe:** el mismo agente LSTM, destilado de A-g6_4000k en lugar de hard, pasa de perder casi todo a no perder casi nunca, y sin RL todavía.
+
+- **D-g1b** (destilado de hard, acuerdo 0,906, más ~6,5M pasos de RL). Contra A-g6, A-g5, B-g4, C-g4 y E-g1 perdía unas 170–190 de 200 partidas, y contra hard solo ganaba el 30 %.
+- **D2-distill:** `distill.py gen --teacher models/shared/A-g6_4000k.zip --steps 2000000 --n-envs 6 --maps mixed2 --scenario-prob 0.3`.
+  - Rivales en gen: A-g6 (det. y estoc.), B-g4, C-g4, A-g5, hard, medium y bots, con hitandhide y bushcamper al 10 %.
+  - Después `train --epochs 25` (CPU, 73 s por época): **acuerdo 0,754**.
+  - A-g6 duda mucho más que hard: p(acción favorita) < 0,5 en el 38 % de los estados, frente al 14 % de hard; entropía media 1,03 frente a 0,65. El acuerdo con su acción favorita es, por tanto, más difícil.
+- **D2b-distill:** 1,5M pasos más (`--seed 100`) y `train --data data.npz data2.npz --init models/D2-distill.zip --device cuda --lr 2e-4 --ce-coef 0.5 --select acc --max-minutes 65` (GPU, 43 s por época, 89 épocas).
+  - **Acuerdo 0,886**, y **0,976 en los estados en que A-g6 está seguro** (p > 0,6).
+  - `--ce-coef`: entropía cruzada con la acción favorita del maestro, que es la que se juega en determinista.
+  - La validación de data.npz es la misma que vio D2, así que no hay fuga.
+- **Nuevo en `student/distill.py`:**
+  - gen: `--teacher`, `--opponents`, `--maps`, `--scenario-prob`;
+  - train: varios `--data`, `--init`, `--device`, `--ce-coef`, `--select {kl,acc}`, `--max-minutes` (LR en coseno según el tiempo) y la métrica `acc_conf`.
+  - Sin estas opciones, todo funciona como antes.
+- **Evaluación** (`student/eval_vs.py`, nuevo: usa `play`, `build_table`, `head_to_head` y `series_win_prob` de league.py). Determinista, 4 oficiales y 8 aleatorios de la liga, los dos lados. Cada celda es «oficiales · aleatorios» en W-D-L; entre paréntesis, P(serie) oficiales / aleatorios.
+
+| rival | D2-distill | D2b-distill |
+|---|---|---|
+| baseline:hard | 2-6-0 · 8-4-4 (100 % / 80 %) | **6-2-0 · 16-0-0** (100 % / 100 %) |
+| A-g7_8000k | 0-8-0 · 0-16-0 (48 % / 49 %) | 0-8-0 · 0-14-2 (48 % / 0 %) |
+| A-g6_4000k | 0-8-0 · 0-16-0 (48 % / 49 %) | 0-8-0 · 0-16-0 (48 % / 49 %) |
+| A-g5_24000k | 0-6-2 · 0-16-0 (0 % / 49 %) | **6-2-0 · 12-4-0** (100 % / 100 %) |
+| B-g4_3000k | 0-8-0 · 0-14-2 (48 % / 0 %) | 0-8-0 · 0-14-2 (48 % / 0 %) |
+| C-g4_6000k | 2-6-0 · 0-16-0 (100 % / 49 %) | 0-8-0 · 2-14-0 (48 % / 100 %) |
+| E-g1_2000k | 0-8-0 · 0-14-2 (48 % / 0 %) | **8-0-0 · 16-0-0** (100 % / 100 %) |
+| R1 | 0-8-0 · 0-14-2 (48 % / 0 %) | **4-4-0 · 4-12-0** (100 % / 100 %) |
+| **total** | 4-58-2 · 8-110-10 | **24-40-0 · 50-74-4** |
+
+  Un 48–49 % de P(serie) significa todo empates (se decide a cara o cruz). Contra A-g6, A-g7 y B-g4, D2b empata casi siempre, igual que su maestro. Tablas en `results/eval_D2-distill.md` y `results/eval_D2b-distill.md`.
+- **D2-g1 lanzado** (PID 23536, `logs/run_D2-g1.ps1`, GPU) desde D2b, porque contra hard en aleatorios pierde menos (0 frente a 4) y gana más.
+  - `--league-glob 'models/pool_D2_g1/*.zip'` (A-g7_8000k, A-g6_4000k, B-g4_3000k, C-g4_6000k, E-g1_2000k; nunca R1) `--league-share 0.5 --pfsp hard --lr 5e-5 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 60000000 --snapshot-every 2000000 --n-envs 8 --device cuda`.
+  - Parte fija: estoc. A-g6 0.20, hard 0.15, hitandhide 0.15, bushcamper 0.15, estoc. hard 0.10, y medium, basic, aggressive, defensive y rusher a 0.05.
+- **Evaluación automática de snapshots:** `student/watch_snapshots.py --name D2-g1 --pid 23536 --procs 3` (PID 21104, CPU), con eval_vs.py y los mismos 8 rivales. Una fila por snapshot en `results/eval_D2-g1.md`; la primera fila es D2b-distill.
+- Antes se paró D-g1c (352k pasos, sin checkpoint) para dejar RAM a la destilación. Era la continuación de D-g1b con la mezcla antigua; sus curvas están en `results/tb/D-g1c`.
