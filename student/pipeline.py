@@ -172,7 +172,8 @@ def participants(run_id, every):
         final = ""
     if os.path.exists(final) and os.path.exists(final[:-4] + ".json"):   # final == last snapshot: keep one
         steps = json.load(open(final[:-4] + ".json", encoding="utf-8")).get("steps", -1)
-        picked = [(p, w) for p, w in picked if kilo(p) * 1000 != steps]
+        # the final save comes after the rollout that crossed the last snapshot: up to ~8k steps later
+        picked = [(p, w) for p, w in picked if not 0 <= steps - kilo(p) * 1000 < 10_000]
     last = final if os.path.exists(final) else (own[-1] if own else None)
     if last and last not in [p for p, _ in picked]:
         picked.append((last, f"{run_id} último"))
