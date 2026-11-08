@@ -1389,3 +1389,13 @@
   - A-g9, como referencia: 90–95 %, 10 derrotas, hard 2-6-0, evaluate 61 %.
 - **Propuesta:** A-g17_8000k como nueva entrega provisional (`models/liga19/A-g17_8000k.zip`). Pendiente de decisión; `submissions/` no se ha tocado.
 - **Curvas:** `results/tb/A-g4` … `A-g19` (A-g19 copiada a mano).
+
+### 2026-11-08 18:30 · PC2 · D2-g1 parado en 22M; siguiente paso: la LSTM contra A-g17
+- **D2-g1 parado** a los 22M pasos (`logs/D2-g1.stop`; el vigilante lo vio y no lo relanzó). Último checkpoint copiado a `models/D2-g1_22000k.zip` (sin git). Curvas en `results/tb/D2-g1`.
+  - La evaluación automática estaba saturada desde 2M: todos los snapshots salen entre 40-24-0 y 52-12-0 en oficiales y entre 82-42-4 y 102-26-0 en aleatorios contra los 8 rivales de D2b, sin tendencia (`results/eval_D2-g1.md`). Tanto el pool (A-g7, A-g6, B-g4, C-g4, E-g1) como los rivales de evaluación ya estaban batidos.
+- **Causa de la falta de RAM de estos días:** había ~7 960 procesos `rundll32.exe` (unos 2 MB cada uno; el número seguía subiendo) que no lanza nada nuestro. Con D2-g1 parado seguía habiendo 0,7 GB libres de 16 GB. El usuario pasa Defender y reinicia.
+- **Objetivo nuevo (usuario):** A-g17_8000k ha salido mejor que las generaciones de A posteriores; la LSTM tiene que llegar a su nivel. Dos opciones, a decidir con la evaluación:
+  1. `logs/run_eval_D_vs_Ag17.ps1`: D2b, D2-g1 (2M, 10M, 16M, 20M y 22M) y A-g17 como referencia, contra hard, A-g17, A-g15, A-g13, A-g11, A-g9, A-g7, B-g7, C-g7 y R1 (solo como rival). Comparar los snapshots entre sí sirve también para ver si D2-g1 se sobreajustó a su pool (si los últimos van peor que los primeros contra los A nuevos).
+  2. `logs/run_D2-g2.ps1` (la D que tenemos sigue con RL): `$env:INIT` = el mejor de la evaluación. Pool nuevo en `models/p2/` (A-g17, A-g15, A-g13, A-g9, B-g7, C-g7, más el init como self-play); A-g17 y B-g7 estocásticos en la parte fija; 40M pasos, checkpoints cada 1M.
+  3. `logs/run_D4-distill.ps1` (destilar uno nuevo): D4 = LSTM destilada de A-g17_8000k (1,5M pasos de gen en CPU, 60 min de train en GPU desde D2b, CE 0,5).
+- A-g18 y A-g19 están solo en PC1 (no se publicaron). D3 (dataset de ganadores) queda aparcado.
