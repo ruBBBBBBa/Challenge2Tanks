@@ -1426,3 +1426,18 @@
   - `exploiters_vs_A.png` + tablas de B y C, con 576 partidas nuevas de A-g7_8000k y A-g9 contra B/C g5–g7. Hallazgo: A-g7_8000k perdía tarde y sobre todo por timeout, tras encajar un impacto. Con B y C en el pool, A-g9 lo corrige.
   - `rama_D.png`: D-g1b → D2-distill → D2b, con las tablas de PC2 sobre los rivales comunes, y el Elo de D2b en las últimas ligas.
   - Nota: el Elo de A-g1 a A-g5 sale inflado (2100–2400) porque esas ligas aún no tenían exploiters ni D; entre ligas solo es comparable de forma aproximada.
+
+### 2026-11-08 20:10 · PC2 · D4-distill (LSTM destilada de A-g17) frente a D2-g1 y D2b
+- **D4-distill:** `distill.py gen` con A-g17_8000k como maestro (1,5M pasos, 6 entornos, rivales A-g17 det/estoc., A-g15, A-g9, B-g7, C-g7, hard, medium y bots propios; `logs/run_D4-distill.ps1`) y `train --init models/D2b-distill.zip --device cuda --lr 2e-4 --ce-coef 0.5 --select acc --max-minutes 60` → 139 épocas, **val acc 0,778, acc_conf 0,960**.
+- **eval_vs.py** contra hard, A-g17, A-g15, A-g13, A-g11, A-g9, A-g7, B-g7, C-g7 y R1 (solo como rival); `results/eval_D_vs_Ag17.md` y `results/eval_D4_vs_Ag17.md`. Contra los 4 rivales clave (oficiales · aleatorios):
+
+| modelo | A-g17_8000k | A-g15 | B-g7 | C-g7 | derrotas | series (de 8) | todas W-D-L |
+|---|---|---|---|---|---|---|---|
+| **D4-distill** | 0-8-0 · 2-14-0 | 0-8-0 · 0-14-2 | 2-4-2 · 12-4-0 | 0-6-2 · 2-12-2 | **8** | **3** | 54-174-12 |
+| D2b-distill | 0-4-4 · 0-6-10 | 0-8-0 · 0-12-4 | 0-0-8 · 0-4-12 | 0-8-0 · 0-12-4 | 42 | 0 | 30-154-56 |
+| D2-g1 (mejor, 2000k) | 0-4-4 · 0-6-10 | 0-6-2 · 0-2-14 | 0-4-4 · 4-6-6 | 0-0-8 · 4-2-10 | 58 | 0 | 62-70-108 |
+| D2-g1_22000k | 0-2-6 · 0-2-14 | 0-2-6 · 0-4-12 | 0-4-4 · 2-2-12 | 0-2-6 · 0-6-10 | 70 | 0 | 56-106-78 |
+| A-g17_8000k (ref.) | 0-8-0 · 0-16-0 | 0-8-0 · 0-16-0 | 8-0-0 · 14-2-0 | 0-8-0 · 0-16-0 | 0 | 2 | 64-176-0 |
+
+- **D2-g1 se sobreajustó a su pool** (A-g7, A-g6, B-g4, C-g4 y E-g1): a esos les gana casi siempre, pero contra los modelos nuevos pierde 58–70 de 96 partidas y empeora con el entrenamiento (16M y 22M son los peores).
+- **D4 casi alcanza a A-g17:** 8 derrotas de 96 frente a 0, y gana la serie contra A-g17 en aleatorios (2-14-0) y contra B-g7 en aleatorios (12-4-0). R1 16-0-0 en aleatorios.
