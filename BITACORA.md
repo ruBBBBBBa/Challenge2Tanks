@@ -1441,3 +1441,8 @@
 
 - **D2-g1 se sobreajustó a su pool** (A-g7, A-g6, B-g4, C-g4 y E-g1): a esos les gana casi siempre, pero contra los modelos nuevos pierde 58–70 de 96 partidas y empeora con el entrenamiento (16M y 22M son los peores).
 - **D4 casi alcanza a A-g17:** 8 derrotas de 96 frente a 0, y gana la serie contra A-g17 en aleatorios (2-14-0) y contra B-g7 en aleatorios (12-4-0). R1 16-0-0 en aleatorios.
+## 2026-11-08 18:50 · PC1 · Apagado hasta mañana
+
+- Sync parado (PID 6564) para apagar; no queda nada corriendo en PC1. Entrega provisional: A-g17_8000k.
+- Al volver: `bash student/safe_pull.sh` y relanzar el sync con `nohup .venv/bin/python student/sync_models.py --loop --publish A > logs/sync.out 2>&1 & echo $! > logs/sync.pid`.
+- Pendiente: decisión final del lunes a las 12:00 (A-g17_8000k frente a la alternativa A-g15) y renombrar `submissions/equipo_provisional/` con el nombre real del equipo.
