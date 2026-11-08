@@ -96,7 +96,7 @@ Entrenados contra el A líder (a partir de la generación 5, contra **A-g7_8000k
 
 ![Exploiters contra A](exploiters_vs_A.png)
 
-**Lectura.** Las derrotas de A-g7_8000k llegan tarde (de media, entre 290 y 500 pasos) y entre el 38 % y el 100 % son por timeout, no por destrucción. **B** (agresiva) dispara 2–3 veces más que A, mete un impacto y gana por HP al final. **C** (superviviente) apenas hace daño (0,2–0,8 por partida), pero con uno basta: C-g7 gana todas sus partidas a los 500 pasos por el desempate de HP/daño. El agujero de A-g7_8000k era conformarse con el empate y no responder a un primer impacto. Con B y C en el pool, A-g9 ya no pierde contra B y solo 2 de 48 contra C-g6/C-g7.
+**Lectura.** Las derrotas de A-g7_8000k llegan tarde (de media, entre 290 y 500 pasos) y entre el 38 % y el 100 % son por timeout, no por destrucción. **B** (agresiva) dispara 2–3 veces más que A, mete un impacto y gana por HP al final. **C** (superviviente) apenas hace daño (0,2–0,8 por partida), pero con uno basta: C-g7 gana todas sus partidas a los 500 pasos por el desempate de HP/daño. El agujero de A-g7_8000k era conformarse con el empate y no responder a un primer impacto. Con B y C en el pool, A-g9 ya no pierde contra B y pierde 2 de 48 contra C-g6 y 2 de 48 contra C-g7.
 
 ## 4. Rama D (LSTM, PC2): D-g1b → D2-distill → D2b-distill
 
