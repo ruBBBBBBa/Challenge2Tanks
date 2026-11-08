@@ -1399,3 +1399,16 @@
   2. `logs/run_D2-g2.ps1` (la D que tenemos sigue con RL): `$env:INIT` = el mejor de la evaluación. Pool nuevo en `models/p2/` (A-g17, A-g15, A-g13, A-g9, B-g7, C-g7, más el init como self-play); A-g17 y B-g7 estocásticos en la parte fija; 40M pasos, checkpoints cada 1M.
   3. `logs/run_D4-distill.ps1` (destilar uno nuevo): D4 = LSTM destilada de A-g17_8000k (1,5M pasos de gen en CPU, 60 min de train en GPU desde D2b, CE 0,5).
 - A-g18 y A-g19 están solo en PC1 (no se publicaron). D3 (dataset de ganadores) queda aparcado.
+## 2026-11-08 18:00 · PC1 · liga 20 sin más entrenamientos
+
+- A las 17:52 relancé el pipeline (PID 88618) desde A-g19. Por orden del usuario, sin más entrenamientos: `STOP_PIPELINE` creado. La liga 20 (con A-g19 y D2-g1_18000k/20000k) termina, pero **no se lanza A-g20**.
+- Comprobaciones de la sección 10 para **A-g17_8000k** (`models/league/A-g17_8000k.zip`, sha256 d527d143…): carga en entornos limpios py3.8/SB3 2.1 y py3.12/SB3 2.9 (PPO, Box(77,), Discrete(6), determinista). `tools/evaluate.py --games 40`: 77,5 % en total, **hard 39-1-0**, medium 31-9-0, defensive 26-14-0, easy 4-36-0 (empates).
+
+## 2026-11-08 18:30 · PC1 · liga 20 y cambio de entrega provisional a A-g17_8000k
+
+- **Liga 20** (`results/league_2026-11-08_1752_liga20.*`; el pipeline paró tras la liga por `STOP_PIPELINE`, sin lanzar A-g20). Ranking: A-g17_8000k 1812, A-g19_4000k 1804, A-g18 1796, A-g15 1794, A-g19 1794, A-g19_8000k 1793, C-g7_4500k 1784… D2-g1_18000k 1624 y D2-g1_20000k 1615 no mejoran a D2-g1_10000k.
+- **Comparación con A-g9** (`results/comparaciones_noche.md`): lo superan en los tres criterios **A-g15** (tercera liga seguida) y **A-g19_4000k** (97 %, 4 derrotas, pero hard 4-4-0 en oficiales). A-g17_8000k se queda en 92 % de series frente a 94 % de A-g9, con 5 derrotas frente a 12, hard 8-0-0 y evaluate 86 %.
+- **Entrega provisional:** `submissions/equipo_provisional/model.zip` = **A-g17_8000k** (sha256 d527d143…), aprobado por el usuario. Es el número 1 de Elo en las ligas 18–20 y en `evaluate --games 40` queda hard 39-1-0, 0 derrotas.
+  - Sección 10: carga en py3.8/SB3 2.1 y py3.12/SB3 2.9, determinista. `evaluate --games 10` en el entorno limpio py3.8: 72,9 % en total, hard 8-2-0.
+  - A-g9 guardado en `models/candidatos/A-g9.zip`. Alternativa para la liga final del lunes: A-g15.
+- No hay ningún entrenamiento corriendo (orden del usuario). Quité `STOP_PIPELINE` porque el pipeline ya no corre. El sync sigue activo.
