@@ -1186,3 +1186,206 @@
   8 generaciones de ~92 min (liga incluida): A-g12 … A-g19, la última hasta ~7:50; con 9 se habría pasado de las 9:00.
 - Ya entran D2-g1_2000k y D2b-distill (ramas D2 y D2b). R2-g5_3000k (PC4, en `models/reserved/`) entra solo como juez, junto a R1.
 - Seguimiento: `results/comparaciones_noche.md` (comparación con el candidato A-g9 en cada liga) y `results/resumen_noche.md`.
+
+## 2026-11-07 21:00 · PC1 · A-g12
+
+- Comando: `python student/train_agent.py --name A-g12 --init models/liga12/A-g11_8000k.zip --league-glob models/liga12/*.zip --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-07T19:33 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 2.00 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 2 | 0 | 0 | 100% | 1.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-07 21:12 · PC1 · pipeline: A-g12 → liga13 → A-g13
+
+- Liga: `results/league_2026-11-07_2101_liga13.json` (12 modelos + baselines + bots).
+- Elegido: `models/liga13/A-g11_8000k.zip` (mayor Elo principal de la rama A (1784)).
+- Lanzado A-g13 (PID 36327): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g13 --init models/liga13/A-g11_8000k.zip --league-glob 'models/liga13/*.zip' --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g13.out 2>&1 &`
+- Resumen: `results/pipeline_liga13.md`.
+
+## 2026-11-07 22:43 · PC1 · A-g13
+
+- Comando: `python student/train_agent.py --name A-g13 --init models/liga13/A-g11_8000k.zip --league-glob models/liga13/*.zip --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-07T21:12 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 2.00 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 1 | 1 | 0 | 50% | 0.50 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-07 22:59 · PC1 · pipeline: A-g13 → liga14 → A-g14
+
+- Liga: `results/league_2026-11-07_2244_liga14.json` (13 modelos + baselines + bots).
+- Elegido: `models/liga14/A-g13_8000k.zip` (mayor Elo principal de la rama A (1833)).
+- Lanzado A-g14 (PID 40701): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g14 --init models/liga14/A-g13_8000k.zip --league-glob 'models/liga14/*.zip' --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g14.out 2>&1 &`
+- Resumen: `results/pipeline_liga14.md`.
+
+## 2026-11-08 00:29 · PC1 · A-g14
+
+- Comando: `python student/train_agent.py --name A-g14 --init models/liga14/A-g13_8000k.zip --league-glob models/liga14/*.zip --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-07T22:59 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 2.00 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 2 | 0 | 0 | 100% | 1.50 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-08 00:45 · PC1 · pipeline: A-g14 → liga15 → A-g15
+
+- Liga: `results/league_2026-11-08_0029_liga15.json` (14 modelos + baselines + bots).
+- Elegido: `models/liga15/A-g13_8000k.zip` (mayor Elo principal de la rama A (1835)).
+- Lanzado A-g15 (PID 45613): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g15 --init models/liga15/A-g13_8000k.zip --league-glob 'models/liga15/*.zip' --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g15.out 2>&1 &`
+- Resumen: `results/pipeline_liga15.md`.
+
+## 2026-11-08 02:17 · PC1 · A-g15
+
+- Comando: `python student/train_agent.py --name A-g15 --init models/liga15/A-g13_8000k.zip --league-glob models/liga15/*.zip --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-08T00:45 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 1.50 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 2 | 0 | 0 | 100% | 1.50 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 2.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-08 02:33 · PC1 · pipeline: A-g15 → liga16 → A-g16
+
+- Liga: `results/league_2026-11-08_0218_liga16.json` (13 modelos + baselines + bots).
+- Elegido: `models/liga16/A-g15.zip` (mayor Elo principal de la rama A (1848)).
+- Lanzado A-g16 (PID 49953): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g16 --init models/liga16/A-g15.zip --league-glob 'models/liga16/*.zip' --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g16.out 2>&1 &`
+- Resumen: `results/pipeline_liga16.md`.
+
+## 2026-11-08 04:01 · PC1 · A-g16
+
+- Comando: `python student/train_agent.py --name A-g16 --init models/liga16/A-g15.zip --league-glob models/liga16/*.zip --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-08T02:33 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 2.00 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 2 | 0 | 0 | 100% | 1.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 2.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-08 04:18 · PC1 · pipeline: A-g16 → liga17 → A-g17
+
+- Liga: `results/league_2026-11-08_0402_liga17.json` (14 modelos + baselines + bots).
+- Elegido: `models/liga17/A-g15.zip` (mayor Elo principal de la rama A (1834)).
+- Lanzado A-g17 (PID 54314): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g17 --init models/liga17/A-g15.zip --league-glob 'models/liga17/*.zip' --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g17.out 2>&1 &`
+- Resumen: `results/pipeline_liga17.md`.
+
+## 2026-11-08 05:51 · PC1 · A-g17
+
+- Comando: `python student/train_agent.py --name A-g17 --init models/liga17/A-g15.zip --league-glob models/liga17/*.zip --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-08T04:18 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 1.50 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 2 | 0 | 0 | 100% | 1.50 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 2 | 0 | 0 | 100% | 2.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-08 06:08 · PC1 · pipeline: A-g17 → liga18 → A-g18
+
+- Liga: `results/league_2026-11-08_0551_liga18.json` (14 modelos + baselines + bots).
+- Elegido: `models/liga18/A-g17_8000k.zip` (mayor Elo principal de la rama A (1834)).
+- Lanzado A-g18 (PID 61524): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g18 --init models/liga18/A-g17_8000k.zip --league-glob 'models/liga18/*.zip' --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g18.out 2>&1 &`
+- Resumen: `results/pipeline_liga18.md`.
+
+## 2026-11-08 07:35 · PC1 · A-g18
+
+- Comando: `python student/train_agent.py --name A-g18 --init models/liga18/A-g17_8000k.zip --league-glob models/liga18/*.zip --league-share 0.5 --pfsp hard --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-08T06:08 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 2.00 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 2 | 0 | 0 | 100% | 2.00 |
+| baseline:easy | 2 | 0 | 0 | 100% | 2.00 |
+| baseline:hard | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-08 07:53 · PC1 · pipeline: A-g18 → liga19 → A-g19
+
+- Liga: `results/league_2026-11-08_0736_liga19.json` (14 modelos + baselines + bots).
+- Elegido: `models/liga19/A-g17_8000k.zip` (mayor Elo principal de la rama A (1835)).
+- Lanzado A-g19 (PID 65817): `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 nohup /home/rubba/UNIVERSIDAD/ReinforcementLearning/Challenges/Challenge2_Tanks/.venv/bin/python student/train_agent.py --name A-g19 --init models/liga19/A-g17_8000k.zip --league-glob 'models/liga19/*.zip' --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents '{"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}' > logs/A-g19.out 2>&1 &`
+- Resumen: `results/pipeline_liga19.md`.
+
+## 2026-11-08 09:22 · PC1 · A-g19
+
+- Comando: `python student/train_agent.py --name A-g19 --init models/liga19/A-g17_8000k.zip --league-glob models/liga19/*.zip --league-share 0.5 --pfsp variance --reward default --lr 1e-4 --clip-range 0.15 --ent-coef 0.02 --maps mixed2 --scenario-prob 0.3 --timesteps 12000000 --snapshot-every 2000000 --eval-games 2 --n-envs 10 --opponents {"baseline:hard":0.2,"my:stoch:baseline:hard":0.15,"baseline:medium":0.15,"basic":0.05,"aggressive":0.05,"defensive":0.05,"my:rusher":0.05,"my:bushcamper":0.15,"my:hitandhide":0.15}`
+- Pasos: 12,006,540 · inicio 2026-11-08T07:53 · lr efectivo 0.0001
+- Evaluación determinista (2 partidas/rival):
+
+| rival | win | draw | lose | win rate | daño |
+|---|---|---|---|---|---|
+| random | 2 | 0 | 0 | 100% | 2.00 |
+| basic | 2 | 0 | 0 | 100% | 2.00 |
+| aggressive | 2 | 0 | 0 | 100% | 2.00 |
+| defensive | 2 | 0 | 0 | 100% | 2.00 |
+| baseline:easy | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:hard | 0 | 2 | 0 | 0% | 0.00 |
+| baseline:medium | 2 | 0 | 0 | 100% | 2.00 |
+
+- Notas: 
+
+## 2026-11-08 09:25 · PC1 · cierre de la noche (pipeline A-g12 → A-g19)
+
+- **Pipeline:** relanzado a las 19:24 (PID 31353) con 8 generaciones de 12M y PFSP hard/variance alternos. Ligas 12–19, todas sin R1 en el pool. A elegido en cada liga: A-g11_8000k, A-g11_8000k, A-g13_8000k, A-g13_8000k, A-g15, A-g15, A-g17_8000k, A-g17_8000k. El pipeline acabó a las 07:53 tras lanzar A-g19, que terminó a las 09:22. Me pasé de las 9:00 porque cada generación tardó ~1 h 45 min y no ~1 h 30 min. A-g19 no ha jugado ninguna liga; su evaluación final da hard 0-2-0 (2 partidas).
+- **Comparación con el candidato A-g9** (`results/comparaciones_noche.md`; la liga 19 la añadí a mano porque el vigilante solo cubría la 12–18):
+  - Ligas 12–17: ningún A nuevo lo supera en los tres criterios.
+  - Ligas 18–19: lo superan **A-g17_8000k** (series fuera 94 %, 5 derrotas, R1 100 %, hard oficiales 8-0-0, evaluate 86 % con hard 4-0-0) y **A-g15** (95 %, 5 derrotas, R1 100 %, 8-0-0, 79 %). En la liga 19 también **A-g18_8000k** (94 %, 2 derrotas, R1 100 %, 6-2-0, 82 %).
+  - A-g9, como referencia: 90–95 %, 10 derrotas, hard 2-6-0, evaluate 61 %.
+- **Propuesta:** A-g17_8000k como nueva entrega provisional (`models/liga19/A-g17_8000k.zip`). Pendiente de decisión; `submissions/` no se ha tocado.
+- **Curvas:** `results/tb/A-g4` … `A-g19` (A-g19 copiada a mano).
