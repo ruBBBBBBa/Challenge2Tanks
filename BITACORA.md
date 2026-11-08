@@ -1412,3 +1412,17 @@
   - Sección 10: carga en py3.8/SB3 2.1 y py3.12/SB3 2.9, determinista. `evaluate --games 10` en el entorno limpio py3.8: 72,9 % en total, hard 8-2-0.
   - A-g9 guardado en `models/candidatos/A-g9.zip`. Alternativa para la liga final del lunes: A-g15.
 - No hay ningún entrenamiento corriendo (orden del usuario). Quité `STOP_PIPELINE` porque el pipeline ya no corre. El sync sigue activo.
+
+## 2026-11-08 18:40 · PC1 · Evaluación final y material para el informe (sin entrenar nada)
+
+- **Evaluación final** (`student/eval_final.py`, nuevo; usa `play`, `build_table`, `head_to_head`, `series_win_prob` y `bradley_terry` de league.py) → `results/eval_final.md` / `.json`.
+  - Comando: `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python student/eval_final.py --out results/eval_final.md` (1320 partidas, 2,1 min, 10 procesos).
+  - Participantes: A-g17_8000k, A-g18_8000k, A-g19 y D2b-distill, el mejor D publicado (Elo 1653 en la liga 20, frente a 1615–1624 de D2-g1_18000k/20000k). `baseline:hard` como referencia. Mapas: 4 oficiales + 24 aleatorios + 16 generados, los dos lados.
+  - **R1 solo como juez**: se lee de `models/eval_pc4/R1.zip`, fuera del Elo y de cualquier pool.
+  - Resultado: **A-g17_8000k** es 1.º (Elo 1861; oficiales 1805) y el único sin ninguna derrota (104-248-0). A-g18_8000k queda 2.º con 1855 (2 derrotas, hard 6-2-0 en oficiales), A-g19 3.º con 1823 (79 % de empates) y D2b 4.º con 1765. Entre los A todo son empates. Contra R1, los A ganan el 100 % de las series en los tres conjuntos de mapas.
+- **Informe** (`student/report_figs.py`, nuevo) → `results/informe/informe.md` y 4 PNG:
+  - `elo_series_por_generacion.png`: Elo y series contra rivales de fuera por generación A-g1 a A-g19, cada una en su liga.
+  - `tb_rama_A.png`: recompensa, longitud de episodio y tasa de victorias de A-g1 a A-g19 seguidas.
+  - `exploiters_vs_A.png` + tablas de B y C, con 576 partidas nuevas de A-g7_8000k y A-g9 contra B/C g5–g7. Hallazgo: A-g7_8000k perdía tarde y sobre todo por timeout, tras encajar un impacto. Con B y C en el pool, A-g9 lo corrige.
+  - `rama_D.png`: D-g1b → D2-distill → D2b, con las tablas de PC2 sobre los rivales comunes, y el Elo de D2b en las últimas ligas.
+  - Nota: el Elo de A-g1 a A-g5 sale inflado (2100–2400) porque esas ligas aún no tenían exploiters ni D; entre ligas solo es comparable de forma aproximada.
