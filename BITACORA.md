@@ -1446,3 +1446,13 @@
 - Sync parado (PID 6564) para apagar; no queda nada corriendo en PC1. Entrega provisional: A-g17_8000k.
 - Al volver: `bash student/safe_pull.sh` y relanzar el sync con `nohup .venv/bin/python student/sync_models.py --loop --publish A > logs/sync.out 2>&1 & echo $! > logs/sync.pid`.
 - Pendiente: decisión final del lunes a las 12:00 (A-g17_8000k frente a la alternativa A-g15) y renombrar `submissions/equipo_provisional/` con el nombre real del equipo.
+
+### 2026-11-08 20:50 · PC2 · D2-g2 (RL desde D4) lanzado para la noche; D4 publicado en la liga
+- **D4-distill publicado:** sync relanzado con `--publish D D2 D2b D4 E` (PID 13656); `logs/sync.log` 20:45:12 `publish: pushed models/league/D4-distill.zip`.
+- **D2-g2** (PID 17432, GPU): `logs/run_D2-g2.ps1` con `INIT=models/D4-distill.zip`, **lr 3e-5** (D2-g1 usó 5e-5 y cambió de estilo en los primeros 2M pasos), clip 0.15, ent 0.02, `--maps mixed2 --scenario-prob 0.3`, 6 entornos (por RAM), snapshots cada 2M y checkpoints cada 1M.
+  - Pool `models/p2/` (PFSP hard, 50 %): A-g17_8000k, A-g15_12006k, A-g13_8000k, A-g9_12006k, B-g7_6000k, C-g7_4500k y D4-distill (self-play). Nunca R1.
+  - Parte fija: A-g17 estocástico 0.20, hitandhide 0.15, bushcamper 0.15, hard 0.10, B-g7 estocástico 0.10, hard estocástico 0.05, y medium, basic, aggressive, defensive y rusher a 0.05.
+  - Pasa la primera actualización de PFSP (106k pasos) sin errores.
+- **Vigilancia:** vigilante (PID 1000); evaluación automática de cada snapshot (PID 15772) contra hard, A-g17_8000k, A-g15, B-g7, C-g7 y R1 (solo como rival), con D4 como primera fila, en `results/eval_D2-g2.md`, y copia a la outbox.
+- **Regla de parada** (`logs/stoprule_D2g2.py`, PID 6760): si dos snapshots seguidos pierden más de 8 partidas contra A-g17, A-g15, B-g7 y C-g7 (D4 pierde 8), crea `logs/D2-g2.stop` y para el entrenamiento. Log en `logs/stoprule_D2-g2.log`.
+- **RAM:** el servicio «NVIDIA LocalSystem Container» (atascado arrancando, ~4 `rundll32.exe` huérfanos por minuto) está deshabilitado; la fuga se ha parado.
