@@ -1502,3 +1502,22 @@
 - `student/run_D5b.ps1` (de PC1): en PowerShell 5.1 el JSON de `--opponents` llegaba a Python sin comillas internas (`{a:0.1}`) y `gen` habría fallado. Lo arreglé escapándolas: `($OPP -replace '"', '\"')`. Lo probé con `json.loads` antes de lanzar.
 - Lanzado a las 16:23 con PID 23020. Salida en `logs/D5b.out` y `logs/D5b.err`. `gen` va a unos 1.950 pasos/s, así que 1,5M pasos tardan unos 13 min. Después vienen `train` (90 min como máximo), `agree` y `eval`, que escribe `results/eval_D5b.md`.
 - R1 solo hace de juez: se lee de `models/reserved/R1.zip` y no entra en los datos.
+
+### 2026-11-09 18:05 · PC2 · D5b-distill: resultado (script `student/run_D5b.ps1` de PC1)
+- Terminó a las 18:03, sin errores. `gen` generó 1,5M pasos con A-g17 como maestro privilegiado. `train` destiló 90 min desde D5 con `--priv-mix 0.5`: val acc 0.798, acc_conf 0.971.
+- Acuerdo con el maestro (`agree`):
+
+  | modelo | acc total | acc con el rival escondido | kl |
+  |---|---|---|---|
+  | D2b | 0.292 | 0.239 | 1.47 |
+  | D5 | 0.699 | **0.526** | 0.155 |
+  | D5b | **0.771** | 0.374 | 0.115 |
+
+  El maestro con la obs oficial coincide con el privilegiado en 0.920 de todos los pasos y en 0.250 de los escondidos.
+- Evaluación final (`results/eval_D5b.md`). Elo: A-g17 1759, D5b 1739, D5 1724, hard 1500.
+- D5b contra A-g17:
+  - oficiales: 0-8-0;
+  - aleatorios: 0-46-2;
+  - generados: 0-32-0.
+- Juez R1: D5b gana todas las series. Contra los bots, D5b mejora a D5 en aleatorios: 113-22-9 frente a 105-11-28 con bushcamper.
+- **Conclusión:** D5b es la mejor LSTM, pero no gana a A-g17. La entrega sigue siendo A-g17_8000k.
