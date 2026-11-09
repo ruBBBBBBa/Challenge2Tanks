@@ -1,0 +1,47 @@
+{
+  "cmd": "train",
+  "epochs": 500,
+  "lr": 0.0002,
+  "vf_coef": 0.5,
+  "seg_len": 2048,
+  "bptt": 128,
+  "batch_seqs": 128,
+  "val_frac": 0.05,
+  "threads": 10,
+  "out": "models/D5-distill.zip",
+  "init": "models/league/A-g17_8000k.zip",
+  "device": "cpu",
+  "ce_coef": 0.5,
+  "select": "acc",
+  "max_minutes": 60.0,
+  "data": [
+    "models/checkpoints_D5-distill/data.npz"
+  ],
+  "seed": 0,
+  "best_val_acc": 0.7142334021627903,
+  "policy_kwargs": {
+    "lstm_hidden_size": 256,
+    "n_lstm_layers": 1,
+    "net_arch": {
+      "pi": [
+        256
+      ],
+      "vf": [
+        256
+      ]
+    }
+  },
+  "rl_kwargs": {
+    "n_steps": 1024,
+    "batch_size": 2048,
+    "gamma": 0.995,
+    "gae_lambda": 0.95,
+    "n_epochs": 10,
+    "ent_coef": 0.01,
+    "learning_rate": 0.0001,
+    "clip_range": 0.2
+  },
+  "date": "2026-11-09 14:31",
+  "computer": "PC1",
+  "teacher": "models/league/A-g17_8000k.zip"
+}

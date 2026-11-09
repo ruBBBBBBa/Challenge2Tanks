@@ -290,6 +290,68 @@ def d_section():
     return L
 
 
+# ------------------------------------------------------------------------- 5. D5 (privileged teacher)
+def d5_section():
+    agree_path = os.path.join(ROOT, "results", "D5_agree.txt")
+    ev_path = os.path.join(ROOT, "results", "eval_D5.json")
+    if not (os.path.exists(agree_path) and os.path.exists(ev_path)):
+        return []
+    txt = open(agree_path, encoding="utf-8").read()
+    ceiling = float(re.search(r"hidden ([0-9.]+) \(", txt).group(1))
+    acc = {m: (float(a), float(h)) for m, a, h in
+           re.findall(r"models/(\S+)-distill\.zip: val acc ([0-9.]+) .*?acc_hidden ([0-9.]+)", txt)}
+    ev = json.load(open(ev_path))
+    names, bots = ev["names"], ev["bots"]
+    bot_rows = ev["bot_games"]
+    models = [n for n in names if n.endswith("distill") or n.startswith("A-")]
+    loss = {(names[r["i"]], ev["bots"][r["j"] - len(names)]): [] for r in bot_rows}
+    for r in bot_rows:
+        loss[(names[r["i"]], bots[r["j"] - len(names)])].append(r["result"] == "lose")
+
+    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
+    labels = ["A-g17 sin ver\n(obs oficial)", "D2b-distill", "D5-distill"]
+    vals = [ceiling, acc["D2b"][1], acc["D5"][1]]
+    ax[0].bar(labels, [100 * v for v in vals], color=["grey", "tab:orange", "tab:green"])
+    for k, v in enumerate(vals):
+        ax[0].text(k, 100 * v + 1, f"{100 * v:.0f} %", ha="center")
+    ax[0].set(ylabel="% acuerdo con A-g17 privilegiado", ylim=(0, 100),
+              title="Pasos con el rival escondido en un arbusto")
+    x = np.arange(len(bots))
+    for k, m in enumerate(models):
+        ax[1].bar(x + (k - 1) * 0.27, [100 * np.mean(loss[(m, b)]) for b in bots], 0.27, label=m)
+    ax[1].set_xticks(x, bots)
+    ax[1].set(ylabel="% de partidas perdidas", title="Contra bots que se esconden (44 mapas x 2 lados x 3 semillas)")
+    ax[1].legend(fontsize=8)
+    for a in ax:
+        a.grid(alpha=0.3, axis="y")
+    fig.tight_layout()
+    fig.savefig(os.path.join(OUT, "D5_privilegiado.png"), dpi=130)
+    plt.close(fig)
+    L = ["", "## 5. D5: destilación con maestro privilegiado (PC1, solo CPU)", "",
+         "El maestro A-g17_8000k ve al rival aunque esté en un arbusto (`distill.py gen --privileged`: `vector_obs` "
+         "con el enemigo visible y su posición real). El alumno LSTM, iniciado desde D2b-distill, solo recibe la "
+         "observación oficial. Son 1,5M pasos (rivales de D2b con `my:bushcamper` y `my:hitandhide` al 20 % cada uno; "
+         "sin R1) y 60 min de KL + CE 0,5 en CPU (23 épocas). Evaluación en `results/eval_D5.md`.", "",
+         "![D5](D5_privilegiado.png)", "",
+         "| modelo | acuerdo total (val) | acuerdo con el rival escondido |", "|---|---|---|",
+         f"| A-g17_8000k con la obs oficial (el propio maestro sin ver: referencia sin memoria) | – | {pct(ceiling)} |"]
+    for m in ("D2b", "D5"):
+        L.append(f"| {m}-distill | {pct(acc[m][0])} | {pct(acc[m][1])} |")
+    L += ["", "| modelo | bot | % derrotas |", "|---|---|---|"]
+    for m in models:
+        for b in bots:
+            L.append(f"| {m} | {b} | {pct(np.mean(loss[(m, b)]))} |")
+    L += ["", "**Lectura.** Con el rival escondido, A-g17 hace otra cosa en el 75 % de los pasos si lo ve: la "
+          "información oculta importa mucho. D5 coincide con el maestro privilegiado en el 62 % de esos pasos, frente "
+          "al 25 % del propio maestro sin verlo y al 21 % de D2b. La LSTM sí saca algo de la memoria (dónde se escondió "
+          "el rival, de dónde vienen las balas). Ojo: no se ha entrenado un MLP con los mismos datos, que sería el "
+          "control sin memoria limpio. Parte de la mejora puede venir de imitar mejor al maestro, sin memoria. **En juego no compensa**: "
+          "D5 pierde el 15–17 % contra los bots que se esconden (A-g17 el 0–1 % y D2b el 4–5 %), porque imita acciones "
+          "que dependen de algo que no ve (el clásico hueco de imitación con maestro privilegiado). En la liga "
+          "mejora a D2b (Elo 1780 frente a 1743, 10 derrotas frente a 60) sin llegar a A-g17 (1839, 0 derrotas)."]
+    return L
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--procs", type=int, default=10)
@@ -299,7 +361,7 @@ def main():
     L = ["# Material para el informe · PC1", "",
          "Generado por `student/report_figs.py` (no entrena nada). Todas las ramas parten de `baseline:hard` "
          "(con permiso del profesor). Partidas deterministas, como en el torneo.", ""]
-    L += elo_section() + tb_section() + exploiters_section(args.procs, args.skip_games) + d_section()
+    L += elo_section() + tb_section() + exploiters_section(args.procs, args.skip_games) + d_section() + d5_section()
     with open(os.path.join(OUT, "informe.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(L) + "\n")
     print(f"[informe] wrote {OUT}/informe.md")

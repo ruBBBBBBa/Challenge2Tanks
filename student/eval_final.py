@@ -32,11 +32,15 @@ def main():
     ap.add_argument("--reference", default="baseline:hard", help="extra participant ('' for none)")
     ap.add_argument("--procs", type=int, default=10)
     ap.add_argument("--out", default="results/eval_final.md")
+    ap.add_argument("--models", nargs="*", default=None, help="name=path.zip ... (default: MODELS)")
+    ap.add_argument("--bots", nargs="*", default=[], help="bot specs played apart (several seeds), e.g. my:bushcamper")
+    ap.add_argument("--bot-seeds", type=int, default=3)
     args = ap.parse_args()
     os.chdir(ROOT)
-    assert "/R" not in "".join(MODELS.values()), "a judge cannot be a participant"
-    names = list(MODELS) + ([args.reference] if args.reference else [])
-    specs = [f"model:{p}" for p in MODELS.values()] + ([args.reference] if args.reference else [])
+    models = dict(m.split("=", 1) for m in args.models) if args.models else MODELS
+    assert "/R" not in "".join(models.values()), "a judge cannot be a participant"
+    names = list(models) + ([args.reference] if args.reference else [])
+    specs = [f"model:{p}" for p in models.values()] + ([args.reference] if args.reference else [])
     judge = os.path.splitext(os.path.basename(args.judge))[0]
     names.append(judge), specs.append(f"model:{args.judge}")
     J = len(names) - 1
@@ -48,8 +52,12 @@ def main():
              for m in keys for s in (0, 1)]
     print(f"[eval_final] {len(names)} participants (judge {judge}), {len(keys)} maps, {len(tasks)} games", flush=True)
     t0 = time.time()
+    nb = len(names)
+    bot_tasks = [(i, nb + b, m, s, seed, specs[i], bot) for i in range(len(models)) for b, bot in enumerate(args.bots)
+                 for m in keys for s in (0, 1) for seed in range(args.bot_seeds)]
     with Pool(args.procs, initializer=_worker_init, initargs=(False,)) as pool:
         rows = list(pool.imap_unordered(play, tasks, chunksize=2))
+        bot_rows = list(pool.imap_unordered(play, bot_tasks, chunksize=4))
     table = build_table(rows)
     cand = list(range(J))                                   # the judge does not enter the Elo
     wdl = lambda w: f"{w[0]}-{w[1]}-{w[2]}"                 # noqa: E731
@@ -97,10 +105,24 @@ def main():
     for i in order:
         L.append(f"| {names[i]} | " + " | ".join(f"{wdl(head_to_head(table, i, J, ks))} | "
                                                 f"{pct(series_win_prob(table, i, J, ks))}" for ks in sets.values()) + " |")
+    if args.bots:
+        L += ["", f"## Contra bots ({args.bot_seeds} semillas por mapa y lado; fuera del Elo)", "",
+              "| modelo | bot | " + " | ".join(f"W-D-L {s}" for s in sets) + " | daño medio | victorias por destrucción |",
+              "|---" * (4 + len(sets)) + "|"]
+        for i in range(len(models)):
+            for b, bot in enumerate(args.bots):
+                g = [r for r in bot_rows if r["i"] == i and r["j"] == nb + b]
+                cells = []
+                for ks in sets.values():
+                    x = [r["result"] for r in g if r["map"] in set(ks)]
+                    cells.append(wdl((x.count("win"), x.count(None), x.count("lose"))))
+                won = [r for r in g if r["result"] == "win"]
+                L.append(f"| {names[i]} | {bot} | " + " | ".join(cells) + f" | {np.mean([r['dmg'] for r in g]):.2f} | "
+                         f"{pct(sum(r['end'] == 'destroyed' for r in won) / max(1, len(won)))} |")
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("\n".join(L) + "\n")
     with open(os.path.splitext(args.out)[0] + ".json", "w", encoding="utf-8") as f:
-        json.dump(dict(names=names, specs=specs, judge=judge, sets=sets, games=rows,
+        json.dump(dict(names=names, specs=specs, judge=judge, sets=sets, games=rows, bots=args.bots, bot_games=bot_rows,
                        elo={k: list(map(float, v)) for k, v in elo.items()}), f)
     print("\n".join(L))
 

@@ -118,3 +118,26 @@ Elo en las últimas ligas (hard = 1500):
 | 18 | 1670 | 1659 (D2-g1_10000k) | 1834 (A-g17_8000k) |
 | 19 | 1660 | 1635 (D2-g1_10000k) | 1835 (A-g17_8000k) |
 | 20 | 1653 | 1624 (D2-g1_18000k) | 1812 (A-g17_8000k) |
+
+## 5. D5: destilación con maestro privilegiado (PC1, solo CPU)
+
+El maestro A-g17_8000k ve al rival aunque esté en un arbusto (`distill.py gen --privileged`: `vector_obs` con el enemigo visible y su posición real). El alumno LSTM, iniciado desde D2b-distill, solo recibe la observación oficial. Son 1,5M pasos (rivales de D2b con `my:bushcamper` y `my:hitandhide` al 20 % cada uno; sin R1) y 60 min de KL + CE 0,5 en CPU (23 épocas). Evaluación en `results/eval_D5.md`.
+
+![D5](D5_privilegiado.png)
+
+| modelo | acuerdo total (val) | acuerdo con el rival escondido |
+|---|---|---|
+| A-g17_8000k con la obs oficial (el propio maestro sin ver: referencia sin memoria) | – | 25% |
+| D2b-distill | 29% | 21% |
+| D5-distill | 71% | 62% |
+
+| modelo | bot | % derrotas |
+|---|---|---|
+| A-g17_8000k | my:bushcamper | 0% |
+| A-g17_8000k | my:hitandhide | 1% |
+| D2b-distill | my:bushcamper | 5% |
+| D2b-distill | my:hitandhide | 4% |
+| D5-distill | my:bushcamper | 17% |
+| D5-distill | my:hitandhide | 15% |
+
+**Lectura.** Con el rival escondido, A-g17 hace otra cosa en el 75 % de los pasos si lo ve: la información oculta importa mucho. D5 coincide con el maestro privilegiado en el 62 % de esos pasos, frente al 25 % del propio maestro sin verlo y al 21 % de D2b. La LSTM sí saca algo de la memoria (dónde se escondió el rival, de dónde vienen las balas). Ojo: no se ha entrenado un MLP con los mismos datos, que sería el control sin memoria limpio. Parte de la mejora puede venir de imitar mejor al maestro, sin memoria. **En juego no compensa**: D5 pierde el 15–17 % contra los bots que se esconden (A-g17 el 0–1 % y D2b el 4–5 %), porque imita acciones que dependen de algo que no ve (el clásico hueco de imitación con maestro privilegiado). En la liga mejora a D2b (Elo 1780 frente a 1743, 10 derrotas frente a 60) sin llegar a A-g17 (1839, 0 derrotas).

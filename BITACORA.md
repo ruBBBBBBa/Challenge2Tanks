@@ -1461,3 +1461,28 @@
 - La regla (`logs/stoprule_D2g2.py`) paró D2-g2 a las 01:35, a los 4,1M pasos: los snapshots de 2M y 4M pierden 10 partidas cada uno contra A-g17_8000k, A-g15, B-g7 y C-g7. D4-distill pierde 8.
 - D2-g2 empata más y gana menos que D4 en mapas aleatorios (8-80-8 y 24-64-8, frente a 44-48-4). Tabla en `results/eval_D2-g2.md`. Curvas en `results/tb/D2-g2`.
 - Conclusión: el RL con lr 3e-5 no mejora a D4 en 4M pasos. El candidato de la rama D es **D4-distill**, que ya está en la liga.
+
+## 2026-11-09 14:50 · PC1 · D5-distill: maestro privilegiado (solo CPU; la entrega no se toca)
+
+- **Cambios en archivos de PC2** (aviso, regla 8):
+  - `student/distill.py`:
+    - `gen --privileged`: el maestro decide con `StudentTanksEnv.privileged_obs()`, que es la `vector_obs` con el enemigo siempre visible y su posición real. Se guarda la obs oficial para el alumno y también `probs_official` (el mismo maestro sin ver).
+    - Guardia: ningún juez (R1, R2, reserved, eval_pc4) puede estar en el maestro ni en los rivales.
+    - `train`: nueva métrica `acc_hidden` (acuerdo en los pasos con el rival escondido). La carga de datos pasa a `load_data()`, sin cambiar el reparto de validación.
+    - Nuevo subcomando `agree`.
+    - `computer` en el json sale de `TANKS_PC` (por defecto PC2).
+  - Sin `--privileged` todo funciona como antes.
+- **Cambios en mis archivos:** `student/envs.py` (`privileged_obs`; probado: cuando el rival es visible coincide exactamente con la obs oficial), `student/eval_final.py` (`--models`, `--bots`, `--bot-seeds`) y `student/report_figs.py` (sección 5).
+- **Comando:** `logs/run_D5.sh` (PID 5851, 13:28–14:40).
+  - gen: `--privileged --teacher models/league/A-g17_8000k.zip --steps 1500000 --n-envs 10 --maps mixed2 --scenario-prob 0.3 --seed 5`. Rivales: los de D2b (A-g6 det./estoc., A-g5, B-g4, C-g4, hard, medium y bots), con `my:bushcamper` y `my:hitandhide` al 20 % cada uno. Sin R1. 3796 pasos/s.
+  - train: `--init models/D2b-distill.zip --lr 2e-4 --ce-coef 0.5 --select acc --max-minutes 60 --threads 10`. 23 épocas; val acc 0,714, acc_conf 0,909.
+- **Acuerdo en los pasos con el rival escondido** (`results/D5_agree.txt`; 162 374 de 1,5M pasos, 7 593 en validación):
+  - A-g17 con la obs oficial frente a privilegiado: 0,248. Si ve al rival, el maestro hace otra cosa el 75 % de las veces.
+  - D2b: 0,212. **D5: 0,615**. La LSTM saca algo de la memoria, aunque falta el control de un MLP entrenado con los mismos datos.
+- **Evaluación** (`results/eval_D5.md`: 4 oficiales + 24 aleatorios + 16 generados, los dos lados, R1 solo juez):
+  - Elo: A-g17_8000k 1839 (106-158-0), **D5 1780 (64-190-10)**, D2b 1743 (80-124-60).
+  - R1: D5 gana el 100 % de las series.
+  - Contra bots que se esconden (3 semillas): **D5 pierde el 17 % (bushcamper) y el 15 % (hitandhide)**, frente al 0–1 % de A-g17 y al 4–5 % de D2b. Es el hueco de imitación: copia acciones que dependen de lo que no ve.
+- **Conclusión:** D5 mejora a D2b en la liga, pero empeora contra los que se esconden y no alcanza a A-g17. No cambia la entrega. Siguiente paso si se sigue: RL corto desde D5, o mezclar etiquetas privilegiadas y oficiales (DAgger).
+- No he podido repetir la comprobación en el entorno limpio py3.8: el scratchpad se borró al reiniciar. D5 carga y juega en `.venv` (SB3 2.1).
+- Material: `results/informe/informe.md` sección 5 y `D5_privilegiado.png`. Modelo en `models/D5-distill.zip` + `.json`. Datos (no subidos) en `models/checkpoints_D5-distill/data.npz`.

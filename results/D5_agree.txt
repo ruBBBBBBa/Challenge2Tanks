@@ -1,0 +1,3 @@
+models/checkpoints_D5-distill/data.npz: teacher with the official obs vs privileged: all 0.919 | hidden 0.248 (162374 hidden steps of 1500000)
+models/D2b-distill.zip: val acc 0.289 acc_conf 0.460 acc_hidden 0.212 (7593 hidden steps) kl 1.4221
+models/D5-distill.zip: val acc 0.714 acc_conf 0.909 acc_hidden 0.615 (7593 hidden steps) kl 0.1493

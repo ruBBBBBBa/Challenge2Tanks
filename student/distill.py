@@ -52,6 +52,10 @@ def gen(args):
     th.set_num_threads(2)
     teacher = PPO.load(args.teacher, device="cpu")  # any PPO MlpPolicy zip (hard by default)
     opponents = args.opponents or GEN_OPPONENTS
+    # never a judge (R1, R2...) in the data
+    banned = [x for x in [args.teacher, *opponents] if any(k in x for k in ("R1", "R2", "reserved", "eval_pc4"))]
+    assert not banned, f"judges cannot be in the data: {banned}"
+    print(f"privileged teacher: {args.privileged}")
     print(f"teacher {args.teacher} | maps {args.maps} | scenario_prob {args.scenario_prob} | opponents {opponents}")
     venv = SubprocVecEnv([make_env(args.seed + i, opponents, args.maps, args.scenario_prob)
                           for i in range(args.n_envs)])
@@ -61,12 +65,18 @@ def gen(args):
     prob_buf = np.zeros((L, E, 6), np.float32)
     rew_buf = np.zeros((L, E), np.float32)
     done_buf = np.zeros((L, E), bool)
+    prob_off_buf = np.zeros((L, E, 6), np.float32) if args.privileged else None
     det = rng.random(E) < args.p_det
     obs = venv.reset()
     results, t0 = [], time.time()
     for t in range(L):
         with th.no_grad():
-            probs = teacher.policy.get_distribution(th.as_tensor(obs)).distribution.probs.numpy()
+            # --privileged: the teacher sees the enemy even in a bush (StudentTanksEnv.privileged_obs); the
+            # student keeps the official obs. probs_official = what the same teacher does without that info.
+            tobs = np.array(venv.env_method("privileged_obs"), np.float32) if args.privileged else obs
+            probs = teacher.policy.get_distribution(th.as_tensor(tobs)).distribution.probs.numpy()
+            if args.privileged:
+                prob_off_buf[t] = teacher.policy.get_distribution(th.as_tensor(obs)).distribution.probs.numpy()
         sampled = (probs.cumsum(1) > rng.random((E, 1))).argmax(1)
         act = np.where(det, probs.argmax(1), sampled)
         obs_buf[t], prob_buf[t] = obs, probs
@@ -80,7 +90,9 @@ def gen(args):
             print(f"{n} steps  {n / (time.time() - t0):.0f} steps/s  {len(results)} episodes", flush=True)
     venv.close()
     os.makedirs(os.path.dirname(args.data), exist_ok=True)
-    np.savez(args.data, obs=obs_buf, probs=prob_buf, rew=rew_buf, done=done_buf, teacher=np.array(args.teacher))
+    extra = dict(probs_official=prob_off_buf, privileged=np.array(True)) if args.privileged else {}
+    np.savez(args.data, obs=obs_buf, probs=prob_buf, rew=rew_buf, done=done_buf, teacher=np.array(args.teacher),
+             **extra)
     print(f"saved {args.data}: {L * E} steps, {len(results)} episodes")
     for mode in (True, False):
         for opp in sorted({o for _, o, _ in results}):
@@ -132,7 +144,7 @@ def zero_states(policy, n):
 def run_epoch(policy, data, idx, args, opt=None):
     obs, probs, ret, mask, starts = data
     dev = policy.device
-    tot = {"kl": 0.0, "acc": 0.0, "acc_conf": 0.0, "vloss": 0.0, "n": 0}
+    tot = {"kl": 0.0, "acc": 0.0, "acc_conf": 0.0, "vloss": 0.0, "n": 0, "hid_hit": 0.0, "hid_n": 0.0}
     for b in range(0, len(idx), args.batch_seqs):
         ib = idx[b:b + args.batch_seqs]
         states = zero_states(policy, len(ib))
@@ -153,6 +165,7 @@ def run_epoch(policy, data, idx, args, opt=None):
                     loss = loss + args.ce_coef * (ce * real).sum() / real.sum().clamp_min(1)
                 conf = real & (p.max(-1).values > 0.6)
                 hit = (logits.argmax(-1) == p.argmax(-1)).float()
+                hidden = real & (o.reshape(-1, o.shape[-1])[:, 8] == 0)   # enemy hidden in a bush
             if opt is not None:
                 opt.zero_grad()
                 loss.backward()
@@ -163,14 +176,16 @@ def run_epoch(policy, data, idx, args, opt=None):
             tot["acc"] += hit.mean().item()
             tot["acc_conf"] += ((hit * conf).sum() / conf.sum().clamp_min(1)).item()
             tot["vloss"] += vloss.item()
+            tot["hid_hit"] += (hit * hidden).sum().item()
+            tot["hid_n"] += hidden.sum().item()
             tot["n"] += 1
-    return {k: tot[k] / tot["n"] for k in ("kl", "acc", "acc_conf", "vloss")}
+    out = {k: tot[k] / tot["n"] for k in ("kl", "acc", "acc_conf", "vloss")}
+    out["acc_hidden"] = tot["hid_hit"] / max(1.0, tot["hid_n"])
+    out["n_hidden"] = int(tot["hid_n"])
+    return out
 
 
-def train(args):
-    from sb3_contrib import RecurrentPPO
-    th.set_num_threads(args.threads)
-    th.manual_seed(args.seed)
+def load_data(args):
     # Several data files: segments are cut per file (returns never flow from one file into the next) and
     # concatenated. Validation split per file: file k uses default_rng(seed + k), so file 0 keeps exactly
     # the split of a previous single-file run (no leakage when --init continues from that run).
@@ -197,6 +212,14 @@ def train(args):
     val_idx, tr_idx = np.concatenate(val_idx), np.concatenate(tr_idx)
     teacher = teachers[0] if len(set(teachers)) == 1 else ",".join(teachers)
     print(f"{len(data[0])} segments (train {len(tr_idx)}, val {len(val_idx)})")
+    return data, tr_idx, val_idx, teacher
+
+
+def train(args):
+    from sb3_contrib import RecurrentPPO
+    th.set_num_threads(args.threads)
+    th.manual_seed(args.seed)
+    data, tr_idx, val_idx, teacher = load_data(args)
 
     env = DummyVecEnv([lambda: StudentTanksEnv(opponent="basic", maps="official")])
     if args.init:
@@ -227,7 +250,7 @@ def train(args):
         last = time.time() - t0
         print(f"epoch {ep + 1:3d}  lr {opt.param_groups[0]['lr']:.2e}  train kl {tr['kl']:.4f} acc {tr['acc']:.3f} "
               f"v {tr['vloss']:.3f} | val kl {va['kl']:.4f} acc {va['acc']:.3f} acc_conf {va['acc_conf']:.3f} "
-              f"v {va['vloss']:.3f}  ({last:.0f}s, {(time.time() - t_start) / 60:.0f} min)", flush=True)
+              f"acc_hidden {va['acc_hidden']:.3f} v {va['vloss']:.3f}  ({last:.0f}s, {(time.time() - t_start) / 60:.0f} min)", flush=True)
         score = va["kl"] if args.select == "kl" else -va["acc"]
         if best is None or score < best:
             best = score
@@ -235,8 +258,31 @@ def train(args):
             print(f"  saved {args.out}")
     with open(os.path.splitext(args.out)[0] + ".json", "w") as f:
         json.dump({**vars(args), "best_val_kl" if args.select == "kl" else "best_val_acc": best if args.select == "kl" else -best, "policy_kwargs": POLICY_KWARGS, "rl_kwargs": RL_KWARGS,
-                   "date": time.strftime("%Y-%m-%d %H:%M"), "computer": "PC2",
+                   "date": time.strftime("%Y-%m-%d %H:%M"), "computer": os.environ.get("TANKS_PC", "PC2"),
                    "init": "baseline:hard" if teacher == HARD else teacher, "teacher": teacher}, f, indent=2)
+
+
+def agree(args):
+    """Agreement with the teacher on the validation segments of --data (same split as train), overall and on the
+    steps where the enemy is hidden in a bush. With --privileged data, also the memoryless teacher's own agreement
+    (official obs vs privileged obs) on those steps: the bar a student without memory cannot beat."""
+    from sb3_contrib import RecurrentPPO
+    th.set_num_threads(args.threads)
+    data, _, val_idx, teacher = load_data(args)
+    for path in args.data:
+        d = np.load(path)
+        if "probs_official" in d.files:
+            real = d["probs"].sum(-1) > 0.5
+            hid = real & (d["obs"][..., 8] == 0)
+            same = d["probs_official"].argmax(-1) == d["probs"].argmax(-1)
+            print(f"{path}: teacher with the official obs vs privileged: all {same[real].mean():.3f} | "
+                  f"hidden {same[hid].mean():.3f} ({hid.sum()} hidden steps of {real.sum()})")
+    for m in args.models:
+        model = RecurrentPPO.load(m, device="cpu")
+        model.policy.eval()
+        r = run_epoch(model.policy, data, val_idx, args)
+        print(f"{m}: val acc {r['acc']:.3f} acc_conf {r['acc_conf']:.3f} acc_hidden {r['acc_hidden']:.3f} "
+              f"({r['n_hidden']} hidden steps) kl {r['kl']:.4f}")
 
 
 if __name__ == "__main__":
@@ -250,6 +296,8 @@ if __name__ == "__main__":
     g.add_argument("--opponents", type=json.loads, default=None, help="JSON {spec: weight} (default: GEN_OPPONENTS)")
     g.add_argument("--maps", default="mixed", help="map set for StudentTanksEnv (default: mixed)")
     g.add_argument("--scenario-prob", type=float, default=0.0, help="probability of a prepared start")
+    g.add_argument("--privileged", action="store_true",
+                   help="the teacher sees the enemy even when hidden in a bush; the student keeps the official obs")
     t = sub.add_parser("train")
     t.add_argument("--epochs", type=int, default=30)
     t.add_argument("--lr", type=float, default=3e-4)
@@ -268,7 +316,15 @@ if __name__ == "__main__":
     t.add_argument("--max-minutes", type=float, default=0.0, help="time budget; the cosine LR follows it")
     t.add_argument("--data", nargs="+", default=[DATA], help="one or more gen files (concatenated)")
     g.add_argument("--data", default=DATA)
-    for p in (g, t):
+    ag = sub.add_parser("agree", help="agreement with the teacher on the val split, incl. hidden-enemy steps")
+    ag.add_argument("--models", nargs="+", required=True)
+    for k, v in dict(seg_len=2048, bptt=128, batch_seqs=128, threads=8).items():
+        ag.add_argument("--" + k.replace("_", "-"), type=int, default=v)
+    ag.add_argument("--val-frac", type=float, default=0.05)
+    ag.add_argument("--data", nargs="+", default=[DATA])
+    ag.add_argument("--vf-coef", type=float, default=0.5)
+    ag.add_argument("--ce-coef", type=float, default=0.0)
+    for p in (g, t, ag):
         p.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
-    {"gen": gen, "train": train}[a.cmd](a)
+    {"gen": gen, "train": train, "agree": agree}[a.cmd](a)

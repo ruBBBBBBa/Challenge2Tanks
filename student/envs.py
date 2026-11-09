@@ -117,6 +117,16 @@ class StudentTanksEnv(TanksEnv):
     def set_reward_param(self, name, value):
         setattr(self.reward_fn, name, value)
 
+    def privileged_obs(self):
+        """vector_obs of the current state with the enemy always visible (real position even in a bush).
+        For a privileged teacher in distill.py --privileged; the learner still gets the official obs."""
+        g = self.game
+        g.enemy_visible = lambda viewer: True     # instance attribute shadows the method for one call
+        try:
+            return vector_obs(g.get_state(self.side))
+        finally:
+            del g.enemy_visible
+
 
 def _gen():
     paths = sorted(glob.glob(os.path.join(GEN_DIR, "*.txt")))
