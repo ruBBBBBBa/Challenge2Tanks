@@ -1456,3 +1456,8 @@
 - **Vigilancia:** vigilante (PID 1000); evaluación automática de cada snapshot (PID 15772) contra hard, A-g17_8000k, A-g15, B-g7, C-g7 y R1 (solo como rival), con D4 como primera fila, en `results/eval_D2-g2.md`, y copia a la outbox.
 - **Regla de parada** (`logs/stoprule_D2g2.py`, PID 6760): si dos snapshots seguidos pierden más de 8 partidas contra A-g17, A-g15, B-g7 y C-g7 (D4 pierde 8), crea `logs/D2-g2.stop` y para el entrenamiento. Log en `logs/stoprule_D2-g2.log`.
 - **RAM:** el servicio «NVIDIA LocalSystem Container» (atascado arrancando, ~4 `rundll32.exe` huérfanos por minuto) está deshabilitado; la fuga se ha parado.
+
+### 2026-11-09 · PC2 · D2-g2 parado por la regla de parada; D4-distill sigue siendo el mejor de D
+- La regla (`logs/stoprule_D2g2.py`) paró D2-g2 a las 01:35, a los 4,1M pasos: los snapshots de 2M y 4M pierden 10 partidas cada uno contra A-g17_8000k, A-g15, B-g7 y C-g7. D4-distill pierde 8.
+- D2-g2 empata más y gana menos que D4 en mapas aleatorios (8-80-8 y 24-64-8, frente a 44-48-4). Tabla en `results/eval_D2-g2.md`. Curvas en `results/tb/D2-g2`.
+- Conclusión: el RL con lr 3e-5 no mejora a D4 en 4M pasos. El candidato de la rama D es **D4-distill**, que ya está en la liga.
