@@ -1486,3 +1486,14 @@
 - **Conclusión:** D5 mejora a D2b en la liga, pero empeora contra los que se esconden y no alcanza a A-g17. No cambia la entrega. Siguiente paso si se sigue: RL corto desde D5, o mezclar etiquetas privilegiadas y oficiales (DAgger).
 - No he podido repetir la comprobación en el entorno limpio py3.8: el scratchpad se borró al reiniciar. D5 carga y juega en `.venv` (SB3 2.1).
 - Material: `results/informe/informe.md` sección 5 y `D5_privilegiado.png`. Modelo en `models/D5-distill.zip` + `.json`. Datos (no subidos) en `models/checkpoints_D5-distill/data.npz`.
+
+## 2026-11-09 15:30 · PC1 · D5b preparado para la torre (última tarea de PC2; sin RL)
+
+- Decisión del usuario: no hacer RL con D5. Última tarea para la torre: **D5b**, destilación con etiquetas mezcladas para cerrar el hueco de imitación de D5 contra los bots que se esconden.
+- `student/distill.py train --priv-mix m` (cambio pequeño en archivo de PC2): con datos `--privileged`, el objetivo es m · probs privilegiadas + (1 − m) · probs del maestro sin ver. Por defecto vale 1, como antes. Probado con los datos de D5: las probabilidades suman 1 y el reparto de validación no cambia.
+- `student/run_D5b.ps1`, todo en la torre:
+  - gen `--privileged` con 1,5M pasos (6 entornos por la RAM; mismos rivales que D5, semilla 6);
+  - train en GPU desde `models/D5-distill.zip` (`--priv-mix 0.5 --ce-coef 0.5 --max-minutes 90`) → `models/D5b-distill.zip`;
+  - `agree` (D2b, D5 y D5b) y `eval_final.py` con A-g17_8000k, D5 y D5b, más bushcamper y hitandhide, con R1 solo como juez → `results/eval_D5b.md`.
+  - No toca `submissions/`.
+- Criterio: solo sería candidato si no pierde ninguna partida y gana las series a A-g17_8000k. Si no, queda como resultado para el informe.

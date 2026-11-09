@@ -194,9 +194,14 @@ def load_data(args):
         d = np.load(path)
         teachers.append(str(d["teacher"]) if "teacher" in d.files else HARD)   # older data files: hard
         ret, mask = returns_and_mask(d["rew"], d["done"])
+        probs = d["probs"]
+        mix = getattr(args, "priv_mix", 1.0)
+        if mix < 1.0 and "probs_official" in d.files:   # --privileged data: blend with the teacher without vision
+            probs = mix * probs + (1 - mix) * d["probs_official"]
+            print(f"{path}: target = {mix} * privileged + {1 - mix:.2f} * official teacher probs")
         starts = np.ones_like(d["done"])
         starts[1:] = d["done"][:-1]
-        seg = [segments(a, args.seg_len) for a in (d["obs"], d["probs"], ret, mask, starts)]
+        seg = [segments(a, args.seg_len) for a in (d["obs"], probs, ret, mask, starts)]
         seg[4][:, 0] = True  # each segment starts from a zero LSTM state
         S = len(seg[0])
         perm = np.random.default_rng(args.seed + k).permutation(S)
@@ -315,6 +320,8 @@ if __name__ == "__main__":
     t.add_argument("--select", default="kl", choices=["kl", "acc"], help="keep the epoch with best val kl or acc")
     t.add_argument("--max-minutes", type=float, default=0.0, help="time budget; the cosine LR follows it")
     t.add_argument("--data", nargs="+", default=[DATA], help="one or more gen files (concatenated)")
+    t.add_argument("--priv-mix", type=float, default=1.0,
+                   help="with --privileged data: target = mix * privileged + (1 - mix) * official teacher probs")
     g.add_argument("--data", default=DATA)
     ag = sub.add_parser("agree", help="agreement with the teacher on the val split, incl. hidden-enemy steps")
     ag.add_argument("--models", nargs="+", required=True)
