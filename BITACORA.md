@@ -1521,3 +1521,18 @@
   - generados: 0-32-0.
 - Juez R1: D5b gana todas las series. Contra los bots, D5b mejora a D5 en aleatorios: 113-22-9 frente a 105-11-28 con bushcamper.
 - **Conclusión:** D5b es la mejor LSTM, pero no gana a A-g17. La entrega sigue siendo A-g17_8000k.
+
+### 2026-11-09 18:40 · PC2 · Comprobación de la entrega en un entorno limpio (sección 10)
+- Entorno nuevo con conda, Python 3.8.20, en el scratchpad de la sesión: numpy 1.24.4, torch 2.0.1+cpu, stable-baselines3 2.1.0, sb3-contrib 2.1.0 y gymnasium 0.29.1. Instalado desde `requirements.txt` con `numpy<2` y sb3-contrib.
+- `submissions/Ag17(Rubén,Aner,Oier)/model.zip` tiene el mismo hash que `models/league/A-g17_8000k.zip`.
+- `python tools/evaluate.py --agent <model.zip> --games 40`: carga sin errores. **0 derrotas en 280 partidas**, win rate total 77,5 %.
+
+  | rival | W-D-L |
+  |---|---|
+  | random | 39-1-0 |
+  | basic | 39-1-0 |
+  | aggressive | 39-1-0 |
+  | defensive | 26-14-0 |
+  | baseline:easy | 4-36-0 |
+  | baseline:hard | 39-1-0 |
+  | baseline:medium | 31-9-0 |
