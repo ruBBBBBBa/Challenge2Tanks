@@ -1497,3 +1497,8 @@
   - `agree` (D2b, D5 y D5b) y `eval_final.py` con A-g17_8000k, D5 y D5b, más bushcamper y hitandhide, con R1 solo como juez → `results/eval_D5b.md`.
   - No toca `submissions/`.
 - Criterio: solo sería candidato si no pierde ninguna partida y gana las series a A-g17_8000k. Si no, queda como resultado para el informe.
+
+### 2026-11-09 16:25 · PC2 · D5b lanzado en la torre (script de PC1, arreglo pequeño)
+- `student/run_D5b.ps1` (de PC1): en PowerShell 5.1 el JSON de `--opponents` llegaba a Python sin comillas internas (`{a:0.1}`) y `gen` habría fallado. Lo arreglé escapándolas: `($OPP -replace '"', '\"')`. Lo probé con `json.loads` antes de lanzar.
+- Lanzado a las 16:23 con PID 23020. Salida en `logs/D5b.out` y `logs/D5b.err`. `gen` va a unos 1.950 pasos/s, así que 1,5M pasos tardan unos 13 min. Después vienen `train` (90 min como máximo), `agree` y `eval`, que escribe `results/eval_D5b.md`.
+- R1 solo hace de juez: se lee de `models/reserved/R1.zip` y no entra en los datos.

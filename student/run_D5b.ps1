@@ -1,4 +1,4 @@
-# D5b on the tower (PC2): privileged data regenerated on CPU, distillation on GPU with blended labels,
+﻿# D5b on the tower (PC2): privileged data regenerated on CPU, distillation on GPU with blended labels,
 # then agreement and evaluation. Trains no RL and never touches submissions/. Never R1 in the data.
 #   powershell -ExecutionPolicy Bypass -File student\run_D5b.ps1        (run from the challenge root)
 $ErrorActionPreference = "Stop"
@@ -14,7 +14,7 @@ function Step($name, $argv) {
 }
 
 Step "gen" @("student/distill.py", "gen", "--privileged", "--teacher", "models/league/A-g17_8000k.zip",
-    "--steps", "1500000", "--n-envs", "6", "--maps", "mixed2", "--scenario-prob", "0.3", "--opponents", $OPP,
+    "--steps", "1500000", "--n-envs", "6", "--maps", "mixed2", "--scenario-prob", "0.3", "--opponents", ($OPP -replace '"', '\"'),
     "--seed", "6", "--data", $DATA)
 Step "train" @("student/distill.py", "train", "--data", $DATA, "--init", "models/D5-distill.zip", "--device", "cuda",
     "--lr", "2e-4", "--ce-coef", "0.5", "--priv-mix", "0.5", "--select", "acc", "--max-minutes", "90",
